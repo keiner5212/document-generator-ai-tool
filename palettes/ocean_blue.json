@@ -1,0 +1,29 @@
+{
+  "name": "Ocean Blue",
+  "description": "Deep navy and sky blue — professional, calm, trustworthy",
+  "colors": {
+    "primary": "#1a365d",
+    "secondary": "#2c5282",
+    "accent": "#3182ce",
+    "muted": "#718096",
+    "border": "#bee3f8",
+    "background": "#ebf8ff"
+  },
+  "fonts": {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 24,
+    "h2": 17,
+    "h3": 13,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.5, 2.5, 2.8, 2.2],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

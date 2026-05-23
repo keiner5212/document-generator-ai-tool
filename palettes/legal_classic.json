@@ -1,0 +1,29 @@
+{
+  "name": "Legal Classic",
+  "description": "Serif fonts with formal layout — contracts, legal documents, agreements",
+  "colors": {
+    "primary": "#1c1917",
+    "secondary": "#292524",
+    "accent": "#57534e",
+    "muted": "#78716c",
+    "border": "#d6d3d1",
+    "background": "#fafaf9"
+  },
+  "fonts": {
+    "body": "Times-Roman",
+    "heading": "Times-Bold"
+  },
+  "sizes": {
+    "body": 12,
+    "h1": 18,
+    "h2": 14,
+    "h3": 13,
+    "caption": 10
+  },
+  "document": {
+    "page_size": "LETTER",
+    "margins_cm": [3.0, 3.0, 2.5, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

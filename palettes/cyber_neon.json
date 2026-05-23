@@ -1,0 +1,29 @@
+{
+  "name": "Cyber Neon",
+  "description": "Dark slate with electric green and magenta — cyberpunk, gaming, tech manifests",
+  "colors": {
+    "primary": "#d4f5c4",
+    "secondary": "#b8f0a0",
+    "accent": "#39ff14",
+    "muted": "#7eba6a",
+    "border": "#1a4a2e",
+    "background": "#0d1117"
+  },
+  "fonts": {
+    "body": "Courier",
+    "heading": "Courier-Bold"
+  },
+  "sizes": {
+    "body": 10,
+    "h1": 22,
+    "h2": 15,
+    "h3": 12,
+    "caption": 8
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.5, 2.5, 2.5, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "Royal Purple",
+  "description": "Deep purples and violet accents — luxury, creative, high-end reports",
+  "colors": {
+    "primary": "#3b0764",
+    "secondary": "#581c87",
+    "accent": "#7c3aed",
+    "muted": "#a78bfa",
+    "border": "#ede9fe",
+    "background": "#faf5ff"
+  },
+  "fonts": {
+    "body": "Times-Roman",
+    "heading": "Times-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 24,
+    "h2": 18,
+    "h3": 14,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.8, 2.8, 3.0, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

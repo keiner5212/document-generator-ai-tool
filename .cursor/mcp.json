@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "pdf-ai-tools": {
+      "command": "uv",
+      "args": ["run", "python", "mcp_server/server.py"],
+      "cwd": "${workspaceFolder}",
+      "env": {}
+    }
+  }
+}

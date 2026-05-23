@@ -1,0 +1,83 @@
+{
+  "name": "Executive Report",
+  "description": "Structured executive report with summary box, table, and findings list",
+  "version": "1",
+  "variables": {
+    "title":       "Report title",
+    "subtitle":    "Short subtitle or date range",
+    "author":      "Report author name",
+    "department":  "Department or team name",
+    "date":        "Report date",
+    "summary":     "Executive summary paragraph text",
+    "conclusion":  "Conclusion paragraph text"
+  },
+  "document": {
+    "page_size": "A4",
+    "margin_left_cm": 2.5,
+    "margin_right_cm": 2.5,
+    "margin_top_cm": 3.0,
+    "margin_bottom_cm": 2.5,
+    "palette": "ocean_blue"
+  },
+  "metadata": {
+    "title": "{{title}}",
+    "author": "{{author}}",
+    "subject": "{{subtitle}}"
+  },
+  "header": {
+    "left": "{{department}}",
+    "center": "{{title}}",
+    "right": "{{date}}",
+    "font_size": 9,
+    "color": "#718096",
+    "show_on_first_page": false,
+    "line_below": true
+  },
+  "footer": {
+    "left": "Prepared by: {{author}}",
+    "center": "",
+    "right": "Confidential",
+    "font_size": 8,
+    "color": "#94a3b8",
+    "show_on_first_page": false
+  },
+  "page_numbers": true,
+  "watermark": null,
+  "blocks": [
+    {"kind": "heading",   "kwargs": {"text": "{{title}}", "level": 1, "alignment": "center"}},
+    {"kind": "paragraph", "kwargs": {"text": "{{subtitle}}", "alignment": "center", "color": "#718096"}},
+    {"kind": "horizontal_line", "kwargs": {}},
+    {"kind": "spacer",    "kwargs": {"height_cm": 0.5}},
+    {"kind": "colored_box", "kwargs": {
+      "text": "{{summary}}",
+      "title": "Executive Summary",
+      "background_color": "#ebf8ff",
+      "border_color": "#3182ce"
+    }},
+    {"kind": "spacer",    "kwargs": {"height_cm": 0.5}},
+    {"kind": "heading",   "kwargs": {"text": "Key Metrics", "level": 2}},
+    {"kind": "table",     "kwargs": {
+      "data": [
+        ["Metric", "Value", "Change"],
+        ["Total Revenue", "—", "—"],
+        ["New Clients", "—", "—"],
+        ["Satisfaction", "—", "—"]
+      ],
+      "header_row": true,
+      "zebra_stripes": true
+    }},
+    {"kind": "heading",   "kwargs": {"text": "Findings", "level": 2}},
+    {"kind": "bullet_list", "kwargs": {"items": [
+      "Finding one — replace with actual insight.",
+      "Finding two — replace with actual insight.",
+      "Finding three — replace with actual insight."
+    ]}},
+    {"kind": "heading",   "kwargs": {"text": "Conclusion", "level": 2}},
+    {"kind": "paragraph", "kwargs": {"text": "{{conclusion}}"}},
+    {"kind": "spacer",    "kwargs": {"height_cm": 1.0}},
+    {"kind": "paragraph", "kwargs": {
+      "text": "Prepared by: <b>{{author}}</b> — {{department}} — {{date}}",
+      "alignment": "right", "color": "#718096", "font_size": 9
+    }}
+  ]
+}

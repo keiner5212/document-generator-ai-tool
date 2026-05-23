@@ -1,0 +1,29 @@
+{
+  "name": "Minimal Ink",
+  "description": "Pure black and white with thin gray accents — print-ready, ultra-clean",
+  "colors": {
+    "primary": "#000000",
+    "secondary": "#1a1a1a",
+    "accent": "#404040",
+    "muted": "#999999",
+    "border": "#cccccc",
+    "background": "#ffffff"
+  },
+  "fonts": {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 22,
+    "h2": 16,
+    "h3": 13,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [3.0, 3.0, 3.0, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

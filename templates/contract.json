@@ -1,0 +1,75 @@
+{
+  "name": "Service Contract",
+  "description": "Simple service agreement with two party signatures",
+  "version": "1",
+  "variables": {
+    "party_a":        "First party full legal name",
+    "party_b":        "Second party full legal name",
+    "address_a":      "Party A address",
+    "address_b":      "Party B address",
+    "service":        "Description of the service",
+    "value":          "Contract value (e.g. $5,000)",
+    "start_date":     "Contract start date",
+    "end_date":       "Contract end date",
+    "governing_law":  "Applicable jurisdiction (e.g. State of New York)"
+  },
+  "document": {
+    "page_size": "LETTER",
+    "margin_left_cm": 3.0,
+    "margin_right_cm": 3.0,
+    "margin_top_cm": 2.5,
+    "margin_bottom_cm": 2.5,
+    "palette": "legal_classic"
+  },
+  "metadata": {
+    "title": "Service Agreement — {{party_a}} & {{party_b}}",
+    "author": "{{party_a}}",
+    "subject": "Service contract"
+  },
+  "header": {
+    "left": "SERVICE AGREEMENT",
+    "center": "",
+    "right": "{{start_date}}",
+    "font_size": 9,
+    "color": "#57534e",
+    "show_on_first_page": true,
+    "line_below": true
+  },
+  "footer": {
+    "left": "Confidential",
+    "center": "",
+    "right": "{{governing_law}}",
+    "font_size": 8,
+    "color": "#78716c",
+    "show_on_first_page": true
+  },
+  "page_numbers": true,
+  "watermark": null,
+  "blocks": [
+    {"kind": "heading",   "kwargs": {"text": "SERVICE AGREEMENT", "level": 1, "alignment": "center"}},
+    {"kind": "spacer",    "kwargs": {"height_cm": 0.5}},
+    {"kind": "paragraph", "kwargs": {"text": "This Service Agreement (the \"Agreement\") is entered into as of <b>{{start_date}}</b>, by and between <b>{{party_a}}</b>, located at {{address_a}} (\"Party A\"), and <b>{{party_b}}</b>, located at {{address_b}} (\"Party B\")."}},
+    {"kind": "heading",   "kwargs": {"text": "1. Services", "level": 2}},
+    {"kind": "paragraph", "kwargs": {"text": "Party A agrees to provide the following services to Party B: <b>{{service}}</b>. The engagement shall commence on <b>{{start_date}}</b> and continue through <b>{{end_date}}</b>, unless terminated earlier in accordance with this Agreement."}},
+    {"kind": "heading",   "kwargs": {"text": "2. Compensation", "level": 2}},
+    {"kind": "paragraph", "kwargs": {"text": "In consideration for the services rendered, Party B shall pay Party A the total amount of <b>{{value}}</b> according to the payment schedule mutually agreed upon by both parties."}},
+    {"kind": "heading",   "kwargs": {"text": "3. Confidentiality", "level": 2}},
+    {"kind": "paragraph", "kwargs": {"text": "Each party agrees to hold in confidence and not disclose to any third party any confidential information received from the other party in connection with this Agreement."}},
+    {"kind": "heading",   "kwargs": {"text": "4. Termination", "level": 2}},
+    {"kind": "paragraph", "kwargs": {"text": "Either party may terminate this Agreement upon thirty (30) days written notice. Upon termination, Party B shall pay for all services rendered up to the termination date."}},
+    {"kind": "heading",   "kwargs": {"text": "5. Governing Law", "level": 2}},
+    {"kind": "paragraph", "kwargs": {"text": "This Agreement shall be governed by and construed in accordance with the laws of <b>{{governing_law}}</b>."}},
+    {"kind": "spacer",    "kwargs": {"height_cm": 1.5}},
+    {"kind": "horizontal_line", "kwargs": {}},
+    {"kind": "spacer",    "kwargs": {"height_cm": 0.5}},
+    {"kind": "signature_placeholder", "kwargs": {
+      "label": "Party A — {{party_a}}",
+      "count": 1, "width_cm": 8, "height_cm": 2.5, "layout": "column"
+    }},
+    {"kind": "spacer",    "kwargs": {"height_cm": 0.5}},
+    {"kind": "signature_placeholder", "kwargs": {
+      "label": "Party B — {{party_b}}",
+      "count": 1, "width_cm": 8, "height_cm": 2.5, "layout": "column"
+    }}
+  ]
+}

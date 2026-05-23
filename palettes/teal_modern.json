@@ -1,0 +1,29 @@
+{
+  "name": "Teal Modern",
+  "description": "Teal and cyan on light gray — tech startups, SaaS reports, proposals",
+  "colors": {
+    "primary": "#134e4a",
+    "secondary": "#0f766e",
+    "accent": "#0d9488",
+    "muted": "#6b7280",
+    "border": "#ccfbf1",
+    "background": "#f0fdfa"
+  },
+  "fonts": {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 22,
+    "h2": 16,
+    "h3": 13,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.5, 2.5, 2.5, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

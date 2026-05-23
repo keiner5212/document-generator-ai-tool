@@ -1,0 +1,29 @@
+{
+  "name": "Vibrant Startup",
+  "description": "Bold indigo and fuchsia — pitch decks, investor presentations",
+  "colors": {
+    "primary": "#312e81",
+    "secondary": "#3730a3",
+    "accent": "#c026d3",
+    "muted": "#6b7280",
+    "border": "#e0e7ff",
+    "background": "#fafafa"
+  },
+  "fonts": {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 26,
+    "h2": 18,
+    "h3": 14,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.0, 2.0, 2.5, 2.0],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

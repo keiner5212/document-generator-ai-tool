@@ -1,0 +1,73 @@
+{
+  "name": "Invoice",
+  "description": "Standard service invoice with line-item table and signature",
+  "version": "1",
+  "variables": {
+    "company_name":    "Your company legal name",
+    "company_address": "Company address line",
+    "client_name":     "Client full name or company",
+    "client_address":  "Client address line",
+    "invoice_number":  "Invoice number (e.g. INV-0042)",
+    "date":            "Issue date (e.g. 2026-05-23)",
+    "due_date":        "Payment due date",
+    "total":           "Total amount (e.g. $3,200.00)"
+  },
+  "document": {
+    "page_size": "A4",
+    "margin_left_cm": 2.5,
+    "margin_right_cm": 2.5,
+    "margin_top_cm": 3.0,
+    "margin_bottom_cm": 2.5,
+    "palette": "corporate_slate"
+  },
+  "metadata": {
+    "title": "{{invoice_number}} — {{company_name}}",
+    "author": "{{company_name}}",
+    "subject": "Service invoice"
+  },
+  "header": {
+    "left": "{{company_name}}",
+    "center": "",
+    "right": "{{invoice_number}}",
+    "font_size": 9,
+    "color": "#64748b",
+    "show_on_first_page": true,
+    "line_below": true
+  },
+  "footer": {
+    "left": "{{company_address}}",
+    "center": "",
+    "right": "Due: {{due_date}}",
+    "font_size": 8,
+    "color": "#94a3b8",
+    "show_on_first_page": true
+  },
+  "page_numbers": true,
+  "watermark": null,
+  "blocks": [
+    {"kind": "heading",   "kwargs": {"text": "INVOICE", "level": 1, "alignment": "center"}},
+    {"kind": "spacer",    "kwargs": {"height_cm": 0.5}},
+    {"kind": "paragraph", "kwargs": {"text": "<b>From:</b> {{company_name}}<br/>{{company_address}}", "alignment": "left"}},
+    {"kind": "paragraph", "kwargs": {"text": "<b>Bill to:</b> {{client_name}}<br/>{{client_address}}", "alignment": "left"}},
+    {"kind": "paragraph", "kwargs": {"text": "<b>Date:</b> {{date}}   |   <b>Invoice #:</b> {{invoice_number}}", "alignment": "left"}},
+    {"kind": "horizontal_line", "kwargs": {}},
+    {"kind": "spacer",    "kwargs": {"height_cm": 0.3}},
+    {"kind": "table",     "kwargs": {
+      "data": [
+        ["Description", "Qty", "Unit Price", "Total"],
+        ["Professional services", "1", "—", "{{total}}"]
+      ],
+      "header_row": true,
+      "zebra_stripes": true
+    }},
+    {"kind": "spacer",    "kwargs": {"height_cm": 0.5}},
+    {"kind": "colored_box", "kwargs": {
+      "text": "Total due: <b>{{total}}</b>. Payment within 30 days via bank transfer.",
+      "title": "Amount Due",
+      "background_color": "#f0f9ff",
+      "border_color": "#0369a1"
+    }},
+    {"kind": "spacer",    "kwargs": {"height_cm": 1.0}},
+    {"kind": "signature_placeholder", "kwargs": {"label": "Authorized signature", "name": "{{company_name}}", "count": 1, "width_cm": 8, "height_cm": 2.5}}
+  ]
+}

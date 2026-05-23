@@ -1,0 +1,29 @@
+{
+  "name": "Forest Green",
+  "description": "Earthy greens and olive tones — sustainability, nature, growth",
+  "colors": {
+    "primary": "#1a4731",
+    "secondary": "#276749",
+    "accent": "#38a169",
+    "muted": "#718096",
+    "border": "#c6f6d5",
+    "background": "#f0fff4"
+  },
+  "fonts": {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 22,
+    "h2": 16,
+    "h3": 13,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.5, 2.5, 2.5, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

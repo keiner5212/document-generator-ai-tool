@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Smoke-test palette loading
+        run: |
+          uv run python -c "
+          from pdf_ai_tools.tools import pdf_list_palettes, pdf_list_templates
+          import json
+          p = json.loads(pdf_list_palettes())
+          assert p['ok'] and p['count'] >= 17, f'Expected >=17 palettes, got {p}'
+          t = json.loads(pdf_list_templates())
+          assert t['ok'] and t['count'] >= 3, f'Expected >=3 templates, got {t}'
+          print('Palettes:', p['count'], '| Templates:', t['count'])
+          "
+
+      - name: Build invoice example
+        run: |
+          uv run python -c "
+          from pdf_ai_tools import tools
+          import json, os
+          os.makedirs('output', exist_ok=True)
+          r = json.loads(tools.pdf_create_document('output/ci_test.pdf', theme='default'))
+          did = r['doc_id']
+          tools.pdf_apply_palette(did, 'corporate_slate')
+          tools.pdf_add_heading(did, 'CI Test Document', level=1)
+          tools.pdf_add_paragraph(did, 'Automated build verification.')
+          tools.pdf_add_table(did, [['A','B'],['1','2']])
+          r2 = json.loads(tools.pdf_save_document(did))
+          assert r2['ok'], r2
+          print('PDF saved to:', r2['saved_to'])
+          "
+
+      - name: Render invoice template
+        run: |
+          uv run python -c "
+          from pdf_ai_tools import tools
+          import json, os
+          os.makedirs('output', exist_ok=True)
+          r = json.loads(tools.pdf_render_template(
+              'invoice', 'output/ci_invoice.pdf',
+              json.dumps({
+                  'company_name': 'CI Corp', 'company_address': '1 Test St',
+                  'client_name': 'Test Client', 'client_address': '2 Test Ave',
+                  'invoice_number': 'CI-001', 'date': '2026-05-23',
+                  'due_date': '2026-06-23', 'total': '\$100.00',
+              })
+          ))
+          assert r['ok'], r
+          print('Template rendered to:', r['saved_to'])
+          "

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# uv / virtual environments
+.venv/
+venv/
+.python-version
+
+# Generated output
+output/
+*.pdf
+
+# Secrets & local config
+.env
+.env.*
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Editors
+.idea/
+.vscode/
+*.code-workspace
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# User-created assets (keep built-in ones)
+palettes/my_*.json
+templates/my_*.json

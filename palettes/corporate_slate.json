@@ -1,0 +1,29 @@
+{
+  "name": "Corporate Slate",
+  "description": "Neutral grays with steel blue — formal, modern enterprise documents",
+  "colors": {
+    "primary": "#1e293b",
+    "secondary": "#334155",
+    "accent": "#0369a1",
+    "muted": "#64748b",
+    "border": "#e2e8f0",
+    "background": "#f8fafc"
+  },
+  "fonts": {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 22,
+    "h2": 16,
+    "h3": 13,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [3.0, 2.5, 2.5, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

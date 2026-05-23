@@ -1,0 +1,29 @@
+{
+  "name": "Academic Serif",
+  "description": "Double-column-friendly serif layout — academic papers, theses, research",
+  "colors": {
+    "primary": "#1e3a5f",
+    "secondary": "#374151",
+    "accent": "#1d4ed8",
+    "muted": "#6b7280",
+    "border": "#dbeafe",
+    "background": "#ffffff"
+  },
+  "fonts": {
+    "body": "Times-Roman",
+    "heading": "Times-Bold"
+  },
+  "sizes": {
+    "body": 12,
+    "h1": 18,
+    "h2": 14,
+    "h3": 12,
+    "caption": 10
+  },
+  "document": {
+    "page_size": "LETTER",
+    "margins_cm": [2.5, 2.5, 2.5, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

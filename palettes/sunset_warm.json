@@ -1,0 +1,29 @@
+{
+  "name": "Sunset Warm",
+  "description": "Oranges, reds, and amber — energetic, marketing, creative briefs",
+  "colors": {
+    "primary": "#7c2d12",
+    "secondary": "#9a3412",
+    "accent": "#ea580c",
+    "muted": "#78716c",
+    "border": "#fed7aa",
+    "background": "#fff7ed"
+  },
+  "fonts": {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 22,
+    "h2": 16,
+    "h3": 13,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.5, 2.5, 2.5, 2.5],
+    "page_numbers": false,
+    "watermark": null
+  }
+}

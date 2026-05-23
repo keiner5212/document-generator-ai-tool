@@ -1,0 +1,29 @@
+{
+  "name": "Warm Cream",
+  "description": "Warm beige, terracotta, and sepia — cozy editorial, artisan brands, zines",
+  "colors": {
+    "primary": "#3d1f08",
+    "secondary": "#6b3a1f",
+    "accent": "#c0622a",
+    "muted": "#9c7b63",
+    "border": "#e8cdb5",
+    "background": "#fdf6ee"
+  },
+  "fonts": {
+    "body": "Times-Roman",
+    "heading": "Times-Bold"
+  },
+  "sizes": {
+    "body": 12,
+    "h1": 26,
+    "h2": 18,
+    "h3": 14,
+    "caption": 10
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [3.0, 3.0, 3.0, 2.5],
+    "page_numbers": false,
+    "watermark": null
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "Midnight Dark",
+  "description": "Near-black background with cyan accents — technical, hacker, dark-mode inspired",
+  "colors": {
+    "primary": "#e2e8f0",
+    "secondary": "#cbd5e1",
+    "accent": "#22d3ee",
+    "muted": "#94a3b8",
+    "border": "#334155",
+    "background": "#0f172a"
+  },
+  "fonts": {
+    "body": "Courier",
+    "heading": "Courier-Bold"
+  },
+  "sizes": {
+    "body": 10,
+    "h1": 20,
+    "h2": 15,
+    "h3": 12,
+    "caption": 8
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.5, 2.5, 2.5, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

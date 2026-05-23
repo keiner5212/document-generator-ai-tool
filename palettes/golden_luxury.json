@@ -1,0 +1,29 @@
+{
+  "name": "Golden Luxury",
+  "description": "Black background with gold accents — premium reports, awards, certificates",
+  "colors": {
+    "primary": "#1a1200",
+    "secondary": "#2d1f00",
+    "accent": "#d4a017",
+    "muted": "#8a7340",
+    "border": "#c9a84c",
+    "background": "#fffef5"
+  },
+  "fonts": {
+    "body": "Times-Roman",
+    "heading": "Times-Bold"
+  },
+  "sizes": {
+    "body": 12,
+    "h1": 28,
+    "h2": 18,
+    "h3": 14,
+    "caption": 10
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [3.0, 3.0, 3.5, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

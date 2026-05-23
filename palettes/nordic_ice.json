@@ -1,0 +1,29 @@
+{
+  "name": "Nordic Ice",
+  "description": "Pale blue-whites and frost tones — clean Scandinavian minimalism",
+  "colors": {
+    "primary": "#1c3d5a",
+    "secondary": "#2e5f7a",
+    "accent": "#5ba3c9",
+    "muted": "#8aacbf",
+    "border": "#cce4f0",
+    "background": "#f4f9fd"
+  },
+  "fonts": {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold"
+  },
+  "sizes": {
+    "body": 11,
+    "h1": 24,
+    "h2": 17,
+    "h3": 13,
+    "caption": 9
+  },
+  "document": {
+    "page_size": "A4",
+    "margins_cm": [2.8, 2.8, 3.0, 2.5],
+    "page_numbers": true,
+    "watermark": null
+  }
+}

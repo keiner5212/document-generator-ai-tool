@@ -2,6 +2,25 @@
 name = "pdf-ai-tools"
 version = "0.1.0"
 description = "AI-powered PDF creation and reading toolkit (MCP server)"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Keiner Alvarado" }
+]
+maintainers = [
+    { name = "Keiner Alvarado" }
+]
+keywords = ["pdf", "ai", "mcp", "reportlab", "document-generation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+    "Topic :: Text Processing :: Markup",
+]
 requires-python = ">=3.11"
 dependencies = [
     "reportlab>=4.2.0",
@@ -16,7 +35,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["pdf_ai_tools"]
+packages = ["pdf_ai_tools", "mcp_server"]
 
 [dependency-groups]
 dev = []

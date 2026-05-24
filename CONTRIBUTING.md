@@ -1,5 +1,8 @@
 # Contributing to PDF AI Tools
 
+**Maintainer:** Keiner Alvarado  
+**License:** MIT
+
 Thank you for considering a contribution. This project uses `uv` for dependency management.
 
 ## Development setup

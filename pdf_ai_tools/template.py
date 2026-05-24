@@ -285,8 +285,9 @@ def render_template(
     if wm:
         tools.pdf_set_watermark(doc_id, wm)
 
-    # Replay blocks
+    # Replay blocks — keep in sync with tools.py _replay_log kinds
     dispatch: dict[str, Any] = {
+        # Core content
         "heading":               tools.pdf_add_heading,
         "paragraph":             tools.pdf_add_paragraph,
         "bullet_list":           tools.pdf_add_bullet_list,
@@ -296,9 +297,18 @@ def render_template(
         "horizontal_line":       tools.pdf_add_horizontal_line,
         "spacer":                tools.pdf_add_spacer,
         "page_break":            tools.pdf_add_page_break,
+        # Media
         "insert_image":          tools.pdf_insert_image,
         "qr_code":               tools.pdf_add_qr_code,
+        # Signatures
         "signature_placeholder": tools.pdf_add_signature_placeholder,
+        # Advanced decoration
+        "cover_page":            tools.pdf_add_cover_page,
+        "section_divider":       tools.pdf_add_section_divider,
+        "key_metrics":           tools.pdf_add_key_metrics,
+        "two_column":            tools.pdf_add_two_column,
+        "code_block":            tools.pdf_add_code_block,
+        "banner":                tools.pdf_add_banner,
     }
 
     for i, block in enumerate(tpl.get("blocks", [])):

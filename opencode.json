@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "pdf-ai-tools": {
+      "type": "local",
+      "command": ["uv", "run", "python", "mcp_server/server.py"],
+      "enabled": true,
+      "timeout": 30000
+    }
+  }
+}

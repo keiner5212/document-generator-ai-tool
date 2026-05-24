@@ -1,131 +1,202 @@
 # PDF AI Tools
 
-AI-powered PDF toolkit. An MCP server exposes **35+ tools** to Cursor so an AI agent can create, style, template, and read PDF documents from a plain-language prompt.
+> **Author:** [Keiner Alvarado](https://github.com/keiner5212) · **License:** MIT
 
-## Features at a glance
+AI-powered PDF creation toolkit. An MCP server exposes **40+ tools** to Cursor so an agent can build beautiful, modern, or strictly professional PDFs from a plain-language prompt — with cover pages, palettes, templates, decoration, images, QR codes, and signature blocks.
 
-| Category | What it does |
+[![CI](https://github.com/your-org/pdf-ai-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/pdf-ai-tools/actions)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+## Features
+
+| Category | Tools |
 |---|---|
-| **Document** | Create, inspect, save sessions with any page size |
-| **Palettes** | 12 built-in color themes; create/export custom palettes |
+| **Document lifecycle** | Create, inspect, save, list sessions |
+| **Cover page** | Full-bleed canvas cover (stripe / split / minimal styles) |
+| **Palettes** | 17 built-in color themes; create, export, import custom palettes |
 | **Templates** | Save layouts as JSON; render with `{{variable}}` substitution |
-| **Header / Footer** | Left / center / right zones, line, color, first-page control |
-| **Content** | Headings (H1–H3), paragraphs (HTML), bullets, numbered lists |
-| **Tables** | Zebra stripes, header row, custom column widths |
-| **Callout boxes** | Colored border + background info boxes |
+| **Header / Footer** | Left/center/right zones, line decoration, first-page control |
+| **Typography** | H1–H3 headings, paragraphs (HTML), bullet/numbered lists |
+| **Tables** | Header row, zebra stripes, custom column widths |
+| **Decoration** | Section dividers (4 styles), banners, callout boxes, code blocks |
+| **Layout** | Two-column text, key metrics row, watermark, page numbers |
 | **Media** | Inline images (PNG/JPEG), auto-generated QR codes |
-| **Signatures** | Dashed placeholder boxes, 1–4 in row or column layout |
-| **Decoration** | Watermark, horizontal rules, spacers, page breaks, page numbers |
+| **Signatures** | Dashed placeholder boxes, 1–4 per row or column |
 | **Read PDFs** | Metadata, text extraction per page, page dimensions |
 
-## Installation (uv)
+---
+
+## Installation
 
 ```bash
-cd /home/keiner5212/Descargas/docs
-uv sync          # creates .venv and installs all deps
+git clone https://github.com/your-org/pdf-ai-tools.git
+cd pdf-ai-tools
+uv sync          # creates .venv, installs all dependencies
 ```
 
-## Connect to Cursor
+---
+
+## Cursor MCP Integration
 
 `.cursor/mcp.json` is already configured. After `uv sync`:
 
-1. Open Cursor **Settings → MCP** and confirm `pdf-ai-tools` is listed.
-2. Reload or restart Cursor if needed.
-3. Ask the AI in natural language — it will call the right tools automatically.
+1. Open **Cursor Settings → MCP** — confirm `pdf-ai-tools` appears.
+2. Restart Cursor if needed.
+3. Chat with the AI in natural language.
 
-## Prompt examples
+The AI reads `.cursor/skills/pdf_mcp/SKILL.md` automatically — it contains the full decoration playbook including palette-to-document-type matching, design principles, and tool combination recipes.
 
+**Example prompts:**
 ```
-"Create a corporate invoice for Acme Corp billing Jane Doe $4,800, save to output/invoice.pdf"
+"Create a modern startup pitch deck cover with the vibrant_startup palette"
 
-"Render the contract template for Party A='Corp X' and Party B='Client Y' with governing law of California"
+"Generate a legal contract between Acme Corp and Client LLC with two signatures"
 
-"List all built-in palettes"
+"Build an executive report with cover page, KPI metrics row, and financial table"
 
-"Apply the ocean_blue palette and create a report PDF with a table of 3 metrics and a signature"
+"Create an award certificate with golden luxury styling"
 
-"Read the text from pages 1 and 2 of output/contract.pdf"
-
-"Create a custom palette with primary=#003366, accent=#ff6600 and save to palettes/my_brand.json"
+"Read the text from pages 1–3 of my contract.pdf and summarize it"
 ```
 
-## Palettes (12 built-in)
+---
 
-| File | Name | Best for |
+## 17 Built-in Palettes
+
+| Palette | Personality | Best for |
 |---|---|---|
-| `ocean_blue.json` | Ocean Blue | Professional docs, proposals |
-| `corporate_slate.json` | Corporate Slate | Enterprise reports |
-| `forest_green.json` | Forest Green | Sustainability, nature |
-| `royal_purple.json` | Royal Purple | Luxury, creative |
-| `sunset_warm.json` | Sunset Warm | Marketing, briefs |
-| `midnight_dark.json` | Midnight Dark | Technical docs |
-| `minimal_ink.json` | Minimal Ink | Print-ready, clean |
-| `rose_gold.json` | Rose Gold | Certificates, events |
-| `legal_classic.json` | Legal Classic | Contracts, legal |
-| `teal_modern.json` | Teal Modern | SaaS, tech startups |
-| `academic_serif.json` | Academic Serif | Papers, theses |
-| `vibrant_startup.json` | Vibrant Startup | Pitch decks |
+| `ocean_blue` | Professional, calm | Proposals, reports |
+| `corporate_slate` | Formal, modern | Enterprise, invoices |
+| `forest_green` | Earthy, natural | Sustainability, ESG |
+| `royal_purple` | Luxury, creative | Premium reports |
+| `sunset_warm` | Energetic, warm | Marketing, briefs |
+| `midnight_dark` | Technical, dark | Dev docs, terminals |
+| `minimal_ink` | Ultra-clean, print | Legal, academic |
+| `rose_gold` | Elegant, feminine | Certificates, events |
+| `legal_classic` | Serif, formal | Contracts, legal |
+| `teal_modern` | Fresh, tech | SaaS, startups |
+| `academic_serif` | Scholarly | Papers, theses |
+| `vibrant_startup` | Bold, indigo/fuchsia | Pitch decks |
+| `golden_luxury` | Gold/dark | Awards, certificates |
+| `nordic_ice` | Pale, Scandinavian | Clean minimalism |
+| `warm_cream` | Beige, artisan | Editorial, zines |
+| `cyber_neon` | Dark, electric green | Cyberpunk, gaming |
+| `wine_deep` | Burgundy, serif | Restaurants, menus |
 
-A palette JSON controls: primary/secondary/accent/muted/border/background colors, body and heading fonts, font sizes for body/H1–H3/caption, default page size and margins.
+---
 
-## Templates (3 built-in)
+## 3 Built-in Templates
 
-| File | Name | Variables |
+| Template | Variables | Palette |
 |---|---|---|
-| `templates/invoice.json` | Invoice | company_name, client_name, invoice_number, date, due_date, total, … |
-| `templates/contract.json` | Service Contract | party_a, party_b, service, value, start_date, end_date, governing_law, … |
-| `templates/report.json` | Executive Report | title, subtitle, author, department, date, summary, conclusion |
+| `invoice` | company_name, client_name, invoice_number, date, due_date, total… | corporate_slate |
+| `contract` | party_a, party_b, service, value, start_date, end_date, governing_law… | legal_classic |
+| `report` | title, subtitle, author, department, date, summary, conclusion | ocean_blue |
 
-### Create your own template
+### Render a template
 
-```python
+```bash
+# From Cursor chat:
+"Render the invoice template for Acme Corp billing Jane Doe $4,800 as output/invoice.pdf"
+
+# Or in Python:
+uv run python -c "
 from pdf_ai_tools import tools
 import json
-
-# Build a document normally
-r = json.loads(tools.pdf_create_document("output/draft.pdf"))
-did = r["doc_id"]
-tools.pdf_apply_palette(did, "teal_modern")
-tools.pdf_add_heading(did, "Report: {{title}}", level=1)
-tools.pdf_add_paragraph(did, "Prepared by {{author}} on {{date}}.")
-tools.pdf_add_signature_placeholder(did, label="Approved by")
-
-# Save as template (captures all blocks for replay)
-tools.pdf_save_template(did, "templates/my_template.json", name="My Report")
-tools.pdf_save_document(did)   # also save the actual PDF
-
-# Later, render the template with concrete values
-tools.pdf_render_template(
-    "templates/my_template.json",
-    "output/report_q3.pdf",
-    json.dumps({"title": "Q3 Results", "author": "Alice", "date": "2026-09-30"})
-)
+tools.pdf_render_template('invoice', 'output/invoice.pdf', json.dumps({
+    'company_name': 'Acme Corp',
+    'client_name': 'Jane Doe',
+    'invoice_number': 'INV-042',
+    'date': '2026-05-23',
+    'due_date': '2026-06-23',
+    'total': '\$4,800',
+}))
+"
 ```
 
-## Run the server manually
+---
+
+## Run Examples
+
+```bash
+uv run python examples/build_invoice.py        # corporate invoice
+uv run python examples/build_modern_report.py  # full report with cover + KPIs
+uv run python examples/build_certificate.py    # golden luxury award certificate
+```
+
+---
+
+## Run the MCP Server Manually
 
 ```bash
 uv run python mcp_server/server.py
 ```
 
-## Project structure
+---
+
+## Project Structure
 
 ```
 pdf_ai_tools/
-  __init__.py      — Public exports
-  session.py       — PDFSession (mutable build state)
-  styles.py        — Theme + palette style builders
-  tools.py         — 35+ AI-callable tool functions
-  palette.py       — Palette CRUD
-  template.py      — Template save / load / render
-  reader.py        — Read existing PDFs (pypdf)
-palettes/          — 12 built-in color palette JSON files
-templates/         — Built-in template JSON files
+  session.py    — PDFSession + Flowables (CoverPage, SectionDivider, Banner, CodeBlock)
+  styles.py     — Theme + palette style builders
+  tools.py      — 40+ AI-callable tool functions
+  palette.py    — Palette CRUD (17 built-in JSON files)
+  template.py   — Template save / load / render engine
+  reader.py     — Read existing PDFs (pypdf)
+
+palettes/       — 17 built-in color palette JSON files
+templates/      — 3 built-in template JSON files
+examples/       — build_invoice.py, build_modern_report.py, build_certificate.py
 mcp_server/
-  server.py        — FastMCP server (registers all tools)
-examples/
-  build_invoice.py — Direct Python usage example
+  server.py     — FastMCP server (40+ tools registered)
+
 .cursor/
-  mcp.json         — Cursor MCP configuration (uv run)
-pyproject.toml     — uv project (deps: reportlab, pypdf, fastmcp, qrcode, Pillow)
+  mcp.json                    — Cursor MCP config (uv run)
+  skills/pdf_mcp/SKILL.md     — AI decoration playbook
+
+.github/workflows/ci.yml  — GitHub Actions CI
+pyproject.toml             — uv project definition
+CHANGELOG.md               — Version history
+CONTRIBUTING.md            — How to add palettes, templates, tools
+LICENSE                    — MIT
 ```
+
+---
+
+## Decoration Tools Reference
+
+### New in v0.3
+
+| Tool | Description |
+|---|---|
+| `pdf_add_cover_page` | Full-bleed canvas cover with title, subtitle, logo (stripe/split/minimal) |
+| `pdf_add_section_divider` | Decorative divider: line, bar, underline, or diamond style |
+| `pdf_add_key_metrics` | Row(s) of KPI boxes showing value + label |
+| `pdf_add_two_column` | Side-by-side paragraph blocks |
+| `pdf_add_code_block` | Monospace code with background and caption |
+| `pdf_add_banner` | Full-width colored strip with centered text |
+
+### Core tools
+
+`pdf_add_heading` · `pdf_add_paragraph` · `pdf_add_table` · `pdf_add_colored_box`
+`pdf_add_bullet_list` · `pdf_add_numbered_list` · `pdf_add_signature_placeholder`
+`pdf_insert_image` · `pdf_add_qr_code` · `pdf_set_watermark`
+`pdf_configure_header` · `pdf_configure_footer` · `pdf_enable_page_numbers`
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## Author
+
+**Keiner Alvarado** — [github.com/keiner5212](https://github.com/keiner5212)
+
+MIT License — see [LICENSE](LICENSE).

@@ -140,18 +140,18 @@ class CoverPageFlowable(Flowable):
         style = c.get("style", "stripe")  # stripe | split | minimal
 
         if style == "split":
-            # Right half colored panel
+            # Right-side colored panel
             canv.setFillColor(accent)
-            canv.rect(pw * 0.55, 0, pw * 0.45, ph, stroke=0, fill=1)
-            # Diagonal cut — approximated with a triangle
+            canv.rect(pw * 0.52, 0, pw * 0.48, ph, stroke=0, fill=1)
+            # Diagonal slash cut using a path
             canv.setFillColor(bg)
-            canv.beginPath()
-            canv.moveTo(pw * 0.45, 0)
-            canv.lineTo(pw * 0.58, 0)
-            canv.lineTo(pw * 0.58, ph)
-            canv.lineTo(pw * 0.45, ph)
-            canv.closePath()
-            canv.fill()
+            p = canv.beginPath()
+            p.moveTo(pw * 0.45, 0)
+            p.lineTo(pw * 0.60, 0)
+            p.lineTo(pw * 0.55, ph)
+            p.lineTo(pw * 0.40, ph)
+            p.close()
+            canv.drawPath(p, stroke=0, fill=1)
         elif style == "minimal":
             # Thin bottom accent bar
             canv.setFillColor(accent)
@@ -519,6 +519,7 @@ class PDFSession:
             self.pagesize[0] - (left + right) * cm,
             self.pagesize[1] - (top + bottom) * cm,
             id="main",
+            leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
         )
 
         def on_page(canv, doc):
@@ -530,6 +531,10 @@ class PDFSession:
             title=self.metadata.get("title", ""),
             author=self.metadata.get("author", ""),
             subject=self.metadata.get("subject", ""),
+            leftMargin=left * cm,
+            rightMargin=right * cm,
+            topMargin=top * cm,
+            bottomMargin=bottom * cm,
         )
         doc.addPageTemplates([PageTemplate(id="main", frames=[frame], onPage=on_page)])
         doc.build(self.story)

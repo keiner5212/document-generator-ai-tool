@@ -1,0 +1,36 @@
+---
+description: Activate when creating or editing PDF documents, using pdf_ai_tools, or working with MCP tools in this project.
+globs:
+  - "**/*.py"
+  - "palettes/*.json"
+  - "templates/*.json"
+  - "examples/*.py"
+alwaysApply: false
+---
+# PDF AI Tools — Project Context
+
+## Read the decoration skill first
+Before creating any PDF or calling any MCP tool, read the skill at:
+`/home/keiner5212/.cursor/skills/pdf_mcp/SKILL.md`
+
+This skill contains the full playbook: palette selection, tool order, decoration recipes, and common mistakes.
+
+## Project facts
+- Author: **Keiner Alvarado** (always set as default author in metadata)
+- MCP server: `uv run python mcp_server/server.py`
+- 17 built-in palettes in `palettes/`
+- 3+ built-in templates in `templates/`
+- All tools return JSON strings with `{"ok": true/false, ...}`
+- `doc_id` from `pdf_create_document` is required by every subsequent tool
+
+## Mandatory tool order
+```
+pdf_create_document → pdf_apply_palette → pdf_set_metadata
+→ pdf_configure_header/footer → pdf_add_cover_page (if needed)
+→ [content tools] → pdf_save_document
+```
+
+## Compatibility
+- Cursor: `.cursor/mcp.json`
+- OpenCode: `opencode.json` in project root
+- Claude Desktop: see `docs/SETUP_CLAUDE.md`

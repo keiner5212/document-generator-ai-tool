@@ -32,6 +32,17 @@ def _err(message: str) -> str:
     return json.dumps({"ok": False, "error": message}, ensure_ascii=False, indent=2)
 
 
+def _color_to_hex(color_obj) -> str:
+    """Convert a ReportLab Color object to a #RRGGBB hex string."""
+    try:
+        r = max(0, min(255, int(color_obj.red * 255)))
+        g = max(0, min(255, int(color_obj.green * 255)))
+        b = max(0, min(255, int(color_obj.blue * 255)))
+        return f"#{r:02x}{g:02x}{b:02x}"
+    except Exception:
+        return "#000000"
+
+
 # ===========================================================================
 # Document lifecycle
 # ===========================================================================
@@ -849,24 +860,14 @@ def pdf_add_cover_page(
             return _err("pdf_add_cover_page must be called before any other content tools.")
 
         theme = s.styles.get("_theme", {})
-
-        def _hex(color_obj) -> str:
-            try:
-                r = int(color_obj.red * 255)
-                g = int(color_obj.green * 255)
-                b = int(color_obj.blue * 255)
-                return f"#{r:02x}{g:02x}{b:02x}"
-            except Exception:
-                return "#1a365d"
-
         cover = {
             "title": title,
             "subtitle": subtitle,
             "author": author,
             "date": date,
             "logo_path": logo_path,
-            "background_color": background_color or _hex(theme.get("primary", parse_color("#1a365d"))),
-            "accent_color": accent_color or _hex(theme.get("accent", parse_color("#3182ce"))),
+            "background_color": background_color or _color_to_hex(theme.get("primary", parse_color("#1a365d"))),
+            "accent_color": accent_color or _color_to_hex(theme.get("accent", parse_color("#3182ce"))),
             "title_color": title_color,
             "style": style,
             "title_font_size": title_font_size,
@@ -979,18 +980,21 @@ def pdf_add_key_metrics(
             lbl = m.get("label", "")
             box_bg = parse_color(m["color"]) if m.get("color") else bg
 
-            val_para = Paragraph(
-                f'<font name="{heading_font}" size="22" color="#{int(accent.red*255):02x}{int(accent.green*255):02x}{int(accent.blue*255):02x}">{val}</font>',
-                s.styles["body"].clone(f"metric_val_{id(m)}"),
-            )
-            val_style = val_para.style
+            accent_hex = _color_to_hex(accent)
+            val_style = s.styles["body"].clone(f"metric_val_{id(m)}_{len(cells)}")
             val_style.alignment = ALIGN_MAP["center"]
             val_style.spaceAfter = 2
+            val_para = Paragraph(
+                f'<font name="{heading_font}" size="22" color="{accent_hex}">{val}</font>',
+                val_style,
+            )
 
-            lbl_para = Paragraph(lbl, s.styles["small"].clone(f"metric_lbl_{id(m)}"))
-            lbl_para.style.alignment = ALIGN_MAP["center"]
+            lbl_style = s.styles["small"].clone(f"metric_lbl_{id(m)}_{len(cells)}")
+            lbl_style.alignment = ALIGN_MAP["center"]
+            lbl_para = Paragraph(lbl, lbl_style)
 
-            cell_tbl = Table([[val_para], [lbl_para]], colWidths=[col_w - 10])
+            inner_w = max(col_w - 16, 40)
+            cell_tbl = Table([[val_para], [lbl_para]], colWidths=[inner_w])
             cell_tbl.setStyle(TableStyle([
                 ("BACKGROUND",   (0, 0), (-1, -1), box_bg),
                 ("BOX",          (0, 0), (-1, -1), 1, theme["border"]),

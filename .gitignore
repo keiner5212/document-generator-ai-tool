@@ -1,47 +1,38 @@
-# Python
+# Python / uv
+.venv/
+venv/
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.so
-*.egg
 *.egg-info/
 dist/
 build/
-.eggs/
-
-# uv / virtual environments
-.venv/
-venv/
+.uv/
 .python-version
 
-# Generated output
+# IDE / OS
+.idea/
+.vscode/
+.cursor/
+.DS_Store
+*.swp
+
+# Generated PDFs
 output/
 *.pdf
 
-# Secrets & local config
+# Secrets
 .env
 .env.*
 *.local
 
-# OS
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
+# User-created assets (built-in JSON stays tracked)
+src/pdf_ai_tools/palettes/my_*.json
+src/pdf_ai_tools/templates/my_*.json
 
-# Editors
-.idea/
-.vscode/
-*.code-workspace
+# ignore all md files (except README.md and the portable skill)
+*.md
+!setup/**/*.md
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
-.ruff_cache/
-
-# User-created assets (keep built-in ones)
-palettes/my_*.json
-templates/my_*.json
+# Tool output
+*.json.bak
+*.bak

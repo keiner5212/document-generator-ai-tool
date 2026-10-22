@@ -1,7 +1,22 @@
-# PDF AI Tools — Decoration & Generation Skill
+---
+name: pdf-ai-tools
+description: >-
+  Create, decorate, and read PDF documents through the pdf-ai-tools MCP
+  tools. Use for PDFs, reports, invoices, contracts, certificates, palettes,
+  or document layout.
+---
 
-You are an expert PDF designer using the `pdf-ai-tools` MCP server.
-Read this entire skill before generating any PDF. It is your visual design playbook.
+# PDF AI Tools
+
+Call the `pdf-ai-tools` MCP tools. Do not write Python, shell, or scripts to build a PDF. Do not import reportlab. If the MCP server is not available, stop and say so.
+
+Every tool returns TOON text, not JSON. Do not `json.loads` the result. `ok` is true or false. On failure, read `error`. Keep `doc_id` from `pdf_create_document`. `pdf_save_document` closes the session.
+
+Built-in palette and template names are the JSON file stem (`ocean_blue`, `invoice`), not the title inside the file. Those files load from the install directory, not the client directory. A value that ends in `.json`, or any path that contains a slash, loads that file. `~` and relative paths use the client machine. `pdf_render_template` takes `variables_json` as a JSON object string.
+
+Argument notes: [reference.md](reference.md).
+
+Read the rest of this file before generating a PDF. It is the visual design playbook.
 
 ---
 
@@ -10,18 +25,18 @@ Read this entire skill before generating any PDF. It is your visual design playb
 Always follow this exact sequence:
 
 ```
-pdf_create_document          ← start session, get doc_id
-pdf_apply_palette            ← apply color theme (do this early)
-pdf_set_metadata             ← title, author, subject
-pdf_configure_header         ← per-page header
-pdf_configure_footer         ← per-page footer
-pdf_enable_page_numbers      ← if multi-page
-[optional] pdf_add_cover_page  ← FIRST content call if used
-[content tools...]           ← headings, paragraphs, tables, etc.
-pdf_save_document            ← always last
+pdf_create_document          <- start session, get doc_id
+pdf_apply_palette            <- apply color theme (do this early)
+pdf_set_metadata             <- title, author, subject
+pdf_configure_header         <- per-page header
+pdf_configure_footer         <- per-page footer
+pdf_enable_page_numbers      <- if multi-page
+[optional] pdf_add_cover_page  <- FIRST content call if used
+[content tools...]           <- headings, paragraphs, tables, etc.
+pdf_save_document            <- always last
 ```
 
-Always keep `doc_id` from `pdf_create_document` — every other tool requires it.
+Always keep `doc_id` from `pdf_create_document` - every other tool requires it.
 
 ---
 
@@ -61,15 +76,15 @@ Apply with: `pdf_apply_palette(doc_id, "palette_name")`
 - Add `pdf_add_spacer(doc_id, 0.5)` before H2 sections
 
 ### Spacing Rhythm
-- After a major section starts: spacer 0.3–0.5 cm
+- After a major section starts: spacer 0.3-0.5 cm
 - Between paragraph groups: default `space_after=8` is fine
 - Before a signature block: spacer 1.0 cm
 - After a table: spacer 0.4 cm (already added automatically)
-- After cover page: do NOT add extra spacer — ReportLab handles the page break
+- After cover page: do NOT add extra spacer - ReportLab handles the page break
 
 ### Typography
 - Body text: `alignment="justify"` for professional documents, `"left"` for casual
-- Never set bold AND italic together — pick one
+- Never set bold AND italic together - pick one
 - Use `<b>` in paragraph text for inline emphasis; avoid all-caps body text
 - Captions under images/tables: always add the `caption` parameter
 
@@ -85,7 +100,7 @@ Apply with: `pdf_apply_palette(doc_id, "palette_name")`
 
 ### Modern Business Report
 ```
-pdf_create_document → pdf_apply_palette("corporate_slate")
+pdf_create_document -> pdf_apply_palette("corporate_slate")
 pdf_add_cover_page(title="Q2 2026 Report", subtitle="Strategy & Financials", style="stripe")
 pdf_configure_header(left="Company Name", right="Q2 2026", line_below=True)
 pdf_configure_footer(center="Confidential")
@@ -99,7 +114,7 @@ pdf_add_bullet_list(...)
 
 ### Executive One-Pager
 ```
-pdf_create_document → pdf_apply_palette("ocean_blue")
+pdf_create_document -> pdf_apply_palette("ocean_blue")
 pdf_add_heading("TITLE", level=1, alignment="center")
 pdf_add_horizontal_line()
 pdf_add_two_column(left_text="...", right_text="...")
@@ -109,7 +124,7 @@ pdf_add_key_metrics([...], columns=4)
 
 ### Legal Contract / Agreement
 ```
-pdf_create_document(page_size="LETTER") → pdf_apply_palette("legal_classic")
+pdf_create_document(page_size="LETTER") -> pdf_apply_palette("legal_classic")
 pdf_configure_header(left="[AGREEMENT TYPE]", right="[DATE]", line_below=True)
 pdf_configure_footer(left="Confidential", right="[JURISDICTION]")
 pdf_enable_page_numbers(True)
@@ -121,7 +136,7 @@ pdf_add_signature_placeholder(count=2, layout="column")
 
 ### Tech Documentation
 ```
-pdf_create_document → pdf_apply_palette("midnight_dark")  [or corporate_slate]
+pdf_create_document -> pdf_apply_palette("midnight_dark")  [or corporate_slate]
 pdf_add_cover_page(style="split")
 pdf_add_section_divider("Installation", style="underline")
 pdf_add_code_block(code="pip install ...", language="Shell")
@@ -131,7 +146,7 @@ pdf_add_table([["Parameter","Default","Description"],[...]])
 
 ### Award / Certificate
 ```
-pdf_create_document → pdf_apply_palette("golden_luxury")
+pdf_create_document -> pdf_apply_palette("golden_luxury")
 pdf_add_cover_page(title="Certificate of Excellence", style="minimal")
 [PAGE BREAK so next page is the actual certificate]
 pdf_add_heading("CERTIFICATE OF EXCELLENCE", level=1, alignment="center")
@@ -143,8 +158,8 @@ pdf_add_signature_placeholder(count=2, layout="row")
 
 ### Newsletter / Editorial
 ```
-pdf_create_document → pdf_apply_palette("warm_cream")
-pdf_add_banner("MONTHLY NEWSLETTER — MAY 2026")
+pdf_create_document -> pdf_apply_palette("warm_cream")
+pdf_add_banner("MONTHLY NEWSLETTER - MAY 2026")
 pdf_add_two_column(left_intro, right_image_note)
 pdf_add_section_divider("Feature Story", style="diamond")
 pdf_add_paragraph(...)
@@ -156,10 +171,10 @@ pdf_add_paragraph(...)
 
 - Call it **before any other content tool** (the tool enforces this)
 - Pick a style based on document type:
-  - `stripe` — safe, professional, works with any palette
-  - `split` — modern, bold, great for tech/startup docs
-  - `minimal` — ultra-clean, for luxury or editorial
-- `background_color` and `accent_color` auto-fill from palette — only override for custom branding
+  - `stripe` - safe, professional, works with any palette
+  - `split` - modern, bold, great for tech/startup docs
+  - `minimal` - ultra-clean, for luxury or editorial
+- `background_color` and `accent_color` auto-fill from palette - only override for custom branding
 - Always set `author` and `date` for metadata-rich documents
 - For logo: pass absolute path to PNG/JPEG with transparent background
 
@@ -168,10 +183,10 @@ pdf_add_paragraph(...)
 ## 6. Section Divider Guide (`pdf_add_section_divider`)
 
 Match divider style to document personality:
-- `line` — neutral, universal, formal reports
-- `bar` — modern, clean, corporate documents
-- `underline` — classic, academic, editorial
-- `diamond` — creative, luxury, ceremonial
+- `line` - neutral, universal, formal reports
+- `bar` - modern, clean, corporate documents
+- `underline` - classic, academic, editorial
+- `diamond` - creative, luxury, ceremonial
 
 ---
 
@@ -181,7 +196,7 @@ Match divider style to document personality:
 - Use `zebra_stripes=True` for tables with 4+ rows
 - Provide `column_widths_cm` when columns have very different content lengths:
   - Example: `[8, 3, 3]` for a wide description + 2 narrow value columns
-- Keep cell text concise — wrap long text in the paragraph manually
+- Keep cell text concise - wrap long text in the paragraph manually
 - For tables with 1 column, consider `pdf_add_colored_box` instead
 
 ---
@@ -192,7 +207,7 @@ Match divider style to document personality:
 |---|---|
 | `pdf_add_colored_box` | Important notice, tip, warning, summary highlight |
 | `pdf_add_banner` | Chapter/section announcement, call-to-action |
-| `pdf_add_key_metrics` | 2–4 KPI numbers to show at a glance |
+| `pdf_add_key_metrics` | 2-4 KPI numbers to show at a glance |
 | `pdf_add_section_divider` | Transition between major document sections |
 | `pdf_add_code_block` | Source code, CLI commands, configuration snippets |
 | `pdf_add_two_column` | Pros/cons, before/after, side-by-side text |
@@ -201,9 +216,9 @@ Match divider style to document personality:
 
 ## 9. Multi-page Document Checklist
 
-- [ ] `pdf_configure_header` — always set for multi-page
-- [ ] `pdf_configure_footer` — company / confidentiality info
-- [ ] `pdf_enable_page_numbers(True)` — always for formal docs
+- [ ] `pdf_configure_header` - always set for multi-page
+- [ ] `pdf_configure_footer` - company / confidentiality info
+- [ ] `pdf_enable_page_numbers(True)` - always for formal docs
 - [ ] `show_on_first_page=False` on header/footer when using a cover page
 - [ ] Add `pdf_add_page_break()` between major chapters
 - [ ] `pdf_add_section_divider` before each chapter
@@ -214,10 +229,10 @@ Match divider style to document personality:
 
 - **Do NOT** call `pdf_add_cover_page` after adding any content
 - **Do NOT** call `pdf_save_document` more than once (session closes)
-- **Do NOT** forget `doc_id` — every tool call requires it
+- **Do NOT** forget `doc_id` - every tool call requires it
 - **Do NOT** add headings without any following paragraph
 - **Do NOT** stack multiple H1 headings on the same page
-- **Do NOT** mix font overrides with palette — trust the palette
+- **Do NOT** mix font overrides with palette - trust the palette
 - **Do NOT** use very dark `background_color` on `pdf_add_colored_box` with dark text
 
 ---
@@ -229,10 +244,10 @@ Match divider style to document personality:
 | Modern Invoice | `corporate_slate` | `invoice` | cover: no |
 | Premium Contract | `legal_classic` | `contract` | watermark: DRAFT |
 | Executive Report | `ocean_blue` | `report` | cover: stripe |
-| Startup Pitch | `vibrant_startup` | — (build manually) | cover: split |
-| Award Certificate | `golden_luxury` | — | cover: minimal |
-| Dev Docs | `midnight_dark` | — | code_blocks |
-| Warm Editorial | `warm_cream` | — | banner + two_column |
+| Startup Pitch | `vibrant_startup` | - (build manually) | cover: split |
+| Award Certificate | `golden_luxury` | - | cover: minimal |
+| Dev Docs | `midnight_dark` | - | code_blocks |
+| Warm Editorial | `warm_cream` | - | banner + two_column |
 
 ---
 

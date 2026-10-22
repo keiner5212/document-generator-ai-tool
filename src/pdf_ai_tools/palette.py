@@ -1,18 +1,20 @@
-"""Color palette management — load, save, list, and apply palette JSON files."""
+"""Load, save, list, and apply palette JSON files."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
-# Built-in palettes live next to this package; user palettes can go anywhere.
-_BUILTIN_DIR = Path(__file__).resolve().parent.parent / "palettes"
+from pdf_ai_tools.paths import resolve_installed_or_user, resolve_user_path
+
+# Built-in palettes ship inside the package. User palettes can live anywhere.
+_BUILTIN_DIR = Path(__file__).resolve().parent / "palettes"
 
 
 # ---------------------------------------------------------------------------
 # Schema helpers
 # ---------------------------------------------------------------------------
+
 
 def _default_palette(name: str = "custom") -> dict:
     return {
@@ -47,7 +49,14 @@ def _default_palette(name: str = "custom") -> dict:
 
 
 def _validate(data: dict) -> None:
-    required_colors = {"primary", "secondary", "accent", "muted", "border", "background"}
+    required_colors = {
+        "primary",
+        "secondary",
+        "accent",
+        "muted",
+        "border",
+        "background",
+    }
     missing = required_colors - set(data.get("colors", {}).keys())
     if missing:
         raise ValueError(f"Palette missing color keys: {missing}")
@@ -57,15 +66,11 @@ def _validate(data: dict) -> None:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def load_palette(path: str) -> dict:
     """Load a palette JSON file from an absolute or relative path."""
-    p = Path(path)
-    if not p.is_absolute():
-        # Check built-in dir first
-        candidate = _BUILTIN_DIR / path
-        if candidate.exists():
-            p = candidate
-    if not p.exists():
+    p = resolve_installed_or_user(path, _BUILTIN_DIR)
+    if not p.is_file():
         raise FileNotFoundError(f"Palette not found: {path}")
     data = json.loads(p.read_text(encoding="utf-8"))
     _validate(data)
@@ -85,10 +90,20 @@ def load_builtin_palette(name: str) -> dict:
 
 def save_palette(palette: dict, path: str) -> Path:
     """Save a palette dict to a JSON file."""
-    p = Path(path)
+    p = resolve_user_path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(palette, ensure_ascii=False, indent=2), encoding="utf-8")
     return p
+
+
+def _read_json_object(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
 
 
 def list_builtin_palettes() -> list[dict[str, str]]:
@@ -97,34 +112,36 @@ def list_builtin_palettes() -> list[dict[str, str]]:
         return []
     result = []
     for f in sorted(_BUILTIN_DIR.glob("*.json")):
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            result.append({
+        data = _read_json_object(f)
+        if data is None:
+            continue
+        result.append(
+            {
                 "name": data.get("name", f.stem),
                 "file": f.name,
                 "description": data.get("description", ""),
-            })
-        except Exception:
-            pass
+            }
+        )
     return result
 
 
 def list_palettes_in_dir(directory: str) -> list[dict[str, str]]:
     """Return palette summaries from any directory."""
-    d = Path(directory)
+    d = resolve_user_path(directory)
     if not d.exists():
         return []
     result = []
     for f in sorted(d.glob("*.json")):
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            result.append({
+        data = _read_json_object(f)
+        if data is None:
+            continue
+        result.append(
+            {
                 "name": data.get("name", f.stem),
                 "file": str(f),
                 "description": data.get("description", ""),
-            })
-        except Exception:
-            pass
+            }
+        )
     return result
 
 

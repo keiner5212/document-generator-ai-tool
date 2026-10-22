@@ -7,10 +7,12 @@ from typing import Any
 
 from pypdf import PdfReader
 
+from pdf_ai_tools.paths import resolve_user_path
+
 
 def read_pdf_info(path: str | Path) -> dict[str, Any]:
     """Extract metadata, page count, and outline from a PDF."""
-    path = Path(path)
+    path = resolve_user_path(path)
     if not path.exists():
         raise FileNotFoundError(f"PDF not found: {path}")
 
@@ -23,19 +25,28 @@ def read_pdf_info(path: str | Path) -> dict[str, Any]:
         "metadata": {},
     }
     if meta:
-        for key in ("/Title", "/Author", "/Subject", "/Creator", "/Producer", "/CreationDate"):
+        for key in (
+            "/Title",
+            "/Author",
+            "/Subject",
+            "/Creator",
+            "/Producer",
+            "/CreationDate",
+        ):
             val = meta.get(key)
             if val:
                 info["metadata"][key.lstrip("/")] = str(val)
 
     outline = []
     if reader.outline:
+
         def walk(items, depth=0):
             for item in items:
                 if isinstance(item, list):
                     walk(item, depth + 1)
                 else:
                     outline.append({"title": item.title, "depth": depth})
+
         walk(reader.outline)
     info["outline"] = outline
     return info
@@ -47,7 +58,7 @@ def read_pdf_text(
     max_chars: int = 50000,
 ) -> dict[str, Any]:
     """Extract text from PDF pages (1-based page numbers)."""
-    path = Path(path)
+    path = resolve_user_path(path)
     reader = PdfReader(str(path))
     total = len(reader.pages)
 
@@ -78,14 +89,16 @@ def read_pdf_text(
 
 def read_pdf_page_dimensions(path: str | Path) -> dict[str, Any]:
     """Return media box dimensions per page."""
-    path = Path(path)
+    path = resolve_user_path(path)
     reader = PdfReader(str(path))
     pages = []
     for i, page in enumerate(reader.pages):
         box = page.mediabox
-        pages.append({
-            "page": i + 1,
-            "width_pt": float(box.width),
-            "height_pt": float(box.height),
-        })
+        pages.append(
+            {
+                "page": i + 1,
+                "width_pt": float(box.width),
+                "height_pt": float(box.height),
+            }
+        )
     return {"path": str(path.resolve()), "pages": pages}

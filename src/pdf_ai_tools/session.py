@@ -1,4 +1,4 @@
-"""PDF document session — holds mutable state while an AI agent builds a PDF."""
+"""PDF document session. Holds mutable state while an agent builds a PDF."""
 
 from __future__ import annotations
 
@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from reportlab.lib import colors
-from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, LETTER, landscape
 from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas
 from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate
 from reportlab.platypus.flowables import Flowable
 
+from pdf_ai_tools.paths import resolve_user_path
 from pdf_ai_tools.styles import (
     build_styles,
     build_styles_from_palette,
@@ -33,6 +34,7 @@ _REGISTRY: dict[str, PDFSession] = {}
 # ===========================================================================
 # Config dataclasses
 # ===========================================================================
+
 
 @dataclass
 class HeaderFooterConfig:
@@ -66,6 +68,7 @@ class SignaturePlaceholder:
 # ===========================================================================
 # Flowables
 # ===========================================================================
+
 
 class SignatureBox(Flowable):
     """Signature placeholder with dashed line, label, and optional name."""
@@ -104,6 +107,21 @@ class SignatureBox(Flowable):
         c.setDash()
 
 
+def _draw_cover_logo(canv, logo_path: str, x: float, y: float, size: float) -> None:
+    try:
+        canv.drawImage(
+            logo_path,
+            x,
+            y,
+            size,
+            size,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+    except Exception:
+        return
+
+
 class CoverPageFlowable(Flowable):
     """
     Full-bleed cover page drawn at canvas level.
@@ -112,19 +130,19 @@ class CoverPageFlowable(Flowable):
     ReportLab automatically starts a new page for subsequent flowables.
     """
 
-    def __init__(self, session: "PDFSession", cover: dict):
+    def __init__(self, session: PDFSession, cover: dict):
         super().__init__()
         self._s = session
         self._c = cover
         self.width = session.content_width()
         self.height = session.content_height()
 
-    def draw(self):  # noqa: C901
+    def draw(self):
         canv = self.canv
         s = self._s
         c = self._c
         pw, ph = s.pagesize
-        left_m, right_m, top_m, bot_m = s.margins
+        left_m, _right_m, _top_m, bot_m = s.margins
 
         canv.saveState()
         # Move to absolute page origin from frame-local coords
@@ -167,17 +185,11 @@ class CoverPageFlowable(Flowable):
 
         # --- Logo (if provided) ---
         logo_path = c.get("logo_path", "")
-        if logo_path and Path(logo_path).exists():
-            logo_h = 2.2 * cm
-            logo_x = (pw - logo_h) / 2
-            logo_y = ph * 0.78
-            try:
-                canv.drawImage(
-                    logo_path, logo_x, logo_y, logo_h, logo_h,
-                    preserveAspectRatio=True, mask="auto",
-                )
-            except Exception:
-                pass
+        if logo_path:
+            logo = resolve_user_path(logo_path)
+            if logo.is_file():
+                logo_h = 2.2 * cm
+                _draw_cover_logo(canv, str(logo), (pw - logo_h) / 2, ph * 0.78, logo_h)
 
         # --- Title ---
         title = c.get("title", "")
@@ -406,6 +418,7 @@ class CodeBlockFlowable(Flowable):
 # Session
 # ===========================================================================
 
+
 class PDFSession:
     """Mutable PDF build session."""
 
@@ -417,7 +430,7 @@ class PDFSession:
         theme: str = "default",
     ):
         self.doc_id = str(uuid.uuid4())[:8]
-        self.output_path = Path(output_path)
+        self.output_path = resolve_user_path(output_path)
         self.page_size_name = page_size.upper().replace("-", "_")
         self.pagesize = PAGE_SIZES.get(self.page_size_name, A4)
         self.margins = margins_cm  # (left, right, top, bottom) in cm
@@ -437,7 +450,9 @@ class PDFSession:
 
     # ------------------------------------------------------------------
 
-    def log_element(self, kind: str, replay_kwargs: dict | None = None, **details: Any) -> None:
+    def log_element(
+        self, kind: str, replay_kwargs: dict | None = None, **details: Any
+    ) -> None:
         self._element_log.append({"kind": kind, **details})
         if replay_kwargs is not None:
             self._replay_log.append({"kind": kind, "kwargs": replay_kwargs})
@@ -515,11 +530,15 @@ class PDFSession:
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         left, right, top, bottom = self.margins
         frame = Frame(
-            left * cm, bottom * cm,
+            left * cm,
+            bottom * cm,
             self.pagesize[0] - (left + right) * cm,
             self.pagesize[1] - (top + bottom) * cm,
             id="main",
-            leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0,
         )
 
         def on_page(canv, doc):
@@ -566,14 +585,20 @@ class PDFSession:
 
 # ---------------------------------------------------------------------------
 
+
 def get_session(doc_id: str) -> PDFSession:
     if doc_id not in _REGISTRY:
-        raise KeyError(f"No active document '{doc_id}'. Call pdf_create_document first.")
+        raise KeyError(
+            f"No active document '{doc_id}'. Call pdf_create_document first."
+        )
     return _REGISTRY[doc_id]
 
 
 def list_sessions() -> list[dict[str, str]]:
-    return [{"doc_id": s.doc_id, "output_path": str(s.output_path)} for s in _REGISTRY.values()]
+    return [
+        {"doc_id": s.doc_id, "output_path": str(s.output_path)}
+        for s in _REGISTRY.values()
+    ]
 
 
 def close_session(doc_id: str) -> None:

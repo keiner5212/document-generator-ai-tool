@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from reportlab.lib import colors
 from reportlab.lib.units import cm
@@ -19,17 +18,24 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.flowables import KeepTogether
 
+from pdf_ai_tools.paths import resolve_user_path
 from pdf_ai_tools.reader import read_pdf_info, read_pdf_page_dimensions, read_pdf_text
-from pdf_ai_tools.session import PDFSession, SignatureBox, close_session, get_session, list_sessions
+from pdf_ai_tools.session import (
+    PDFSession,
+    SignatureBox,
+    close_session,
+    get_session,
+    list_sessions,
+)
 from pdf_ai_tools.styles import ALIGN_MAP, parse_color
 
 
-def _ok(data: dict) -> str:
-    return json.dumps({"ok": True, **data}, ensure_ascii=False, indent=2)
+def _ok(data: dict) -> dict:
+    return {"ok": True, **data}
 
 
-def _err(message: str) -> str:
-    return json.dumps({"ok": False, "error": message}, ensure_ascii=False, indent=2)
+def _err(message: str) -> dict:
+    return {"ok": False, "error": message}
 
 
 def _color_to_hex(color_obj) -> str:
@@ -46,6 +52,7 @@ def _color_to_hex(color_obj) -> str:
 # ===========================================================================
 # Document lifecycle
 # ===========================================================================
+
 
 def pdf_create_document(
     output_path: str,
@@ -64,19 +71,25 @@ def pdf_create_document(
     Use pdf_apply_palette to override with a custom color palette.
     """
     try:
-        path = Path(output_path)
         s = PDFSession(
-            output_path=path,
+            output_path=output_path,
             page_size=page_size,
-            margins_cm=(margin_left_cm, margin_right_cm, margin_top_cm, margin_bottom_cm),
+            margins_cm=(
+                margin_left_cm,
+                margin_right_cm,
+                margin_top_cm,
+                margin_bottom_cm,
+            ),
             theme=theme,
         )
-        s.log_element("create", output_path=str(path))
-        return _ok({
-            "doc_id": s.doc_id,
-            "output_path": str(path),
-            "message": "Document created. Use doc_id in all subsequent calls.",
-        })
+        s.log_element("create", output_path=str(s.output_path))
+        return _ok(
+            {
+                "doc_id": s.doc_id,
+                "output_path": str(s.output_path),
+                "message": "Document created. Use doc_id in all subsequent calls.",
+            }
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -91,7 +104,12 @@ def pdf_set_metadata(
     """Set PDF document metadata (title, author, subject, keywords)."""
     try:
         s = get_session(doc_id)
-        for key, val in [("title", title), ("author", author), ("subject", subject), ("keywords", keywords)]:
+        for key, val in [
+            ("title", title),
+            ("author", author),
+            ("subject", subject),
+            ("keywords", keywords),
+        ]:
             if val:
                 s.metadata[key] = val
         s.log_element("metadata", **s.metadata)
@@ -129,15 +147,17 @@ def pdf_list_documents() -> str:
 # Palette tools
 # ===========================================================================
 
+
 def pdf_list_palettes(extra_dir: str = "") -> str:
     """
     List available color palettes.
 
-    Always lists the 12 built-in palettes. Pass extra_dir to also list
+    Lists the built-in palettes. Pass extra_dir to also list
     palettes in another directory.
     """
     try:
         from pdf_ai_tools.palette import list_builtin_palettes, list_palettes_in_dir
+
         result = list_builtin_palettes()
         if extra_dir:
             result += list_palettes_in_dir(extra_dir)
@@ -156,6 +176,7 @@ def pdf_apply_palette(doc_id: str, palette_name_or_path: str) -> str:
     """
     try:
         from pdf_ai_tools.palette import load_builtin_palette, load_palette
+
         s = get_session(doc_id)
         ref = palette_name_or_path.strip()
         if ref.endswith(".json") or "/" in ref or "\\" in ref:
@@ -164,13 +185,15 @@ def pdf_apply_palette(doc_id: str, palette_name_or_path: str) -> str:
             palette = load_builtin_palette(ref)
         s.apply_palette(palette)
         s.log_element("apply_palette", palette=palette.get("name"))
-        return _ok({
-            "doc_id": doc_id,
-            "palette_applied": palette.get("name"),
-            "colors": palette.get("colors"),
-            "fonts": palette.get("fonts"),
-            "sizes": palette.get("sizes"),
-        })
+        return _ok(
+            {
+                "doc_id": doc_id,
+                "palette_applied": palette.get("name"),
+                "colors": palette.get("colors"),
+                "fonts": palette.get("fonts"),
+                "sizes": palette.get("sizes"),
+            }
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -183,6 +206,7 @@ def pdf_export_palette(doc_id: str, output_path: str, name: str = "") -> str:
     """
     try:
         from pdf_ai_tools.palette import palette_from_session, save_palette
+
         s = get_session(doc_id)
         palette = palette_from_session(s)
         if name:
@@ -220,6 +244,7 @@ def pdf_create_palette_from_colors(
     """
     try:
         from pdf_ai_tools.palette import save_palette
+
         palette = {
             "name": name,
             "description": description,
@@ -259,6 +284,7 @@ def pdf_create_palette_from_colors(
 # Template tools
 # ===========================================================================
 
+
 def pdf_list_templates(extra_dir: str = "") -> str:
     """
     List available document templates.
@@ -268,6 +294,7 @@ def pdf_list_templates(extra_dir: str = "") -> str:
     """
     try:
         from pdf_ai_tools.template import list_builtin_templates, list_templates_in_dir
+
         result = list_builtin_templates()
         if extra_dir:
             result += list_templates_in_dir(extra_dir)
@@ -289,7 +316,12 @@ def pdf_render_template(
                     Example: '{"company_name": "Acme", "client_name": "John"}'
     """
     try:
-        from pdf_ai_tools.template import load_builtin_template, load_template, render_template
+        from pdf_ai_tools.template import (
+            load_builtin_template,
+            load_template,
+            render_template,
+        )
+
         ref = template_name_or_path.strip()
         if ref.endswith(".json") or "/" in ref or "\\" in ref:
             tpl = load_template(ref)
@@ -298,11 +330,13 @@ def pdf_render_template(
 
         variables = json.loads(variables_json) if variables_json.strip() else {}
         saved_to = render_template(tpl, output_path, variables)
-        return _ok({
-            "saved_to": saved_to,
-            "template": tpl.get("name"),
-            "variables_used": list(variables.keys()),
-        })
+        return _ok(
+            {
+                "saved_to": saved_to,
+                "template": tpl.get("name"),
+                "variables_used": list(variables.keys()),
+            }
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -322,6 +356,7 @@ def pdf_save_template(
     """
     try:
         from pdf_ai_tools.template import save_template, session_to_template
+
         s = get_session(doc_id)
         tpl = session_to_template(s, name=name or s.doc_id, description=description)
         saved = save_template(tpl, output_path)
@@ -338,23 +373,26 @@ def pdf_inspect_template(path: str) -> str:
     """
     try:
         from pdf_ai_tools.template import load_builtin_template, load_template
+
         ref = path.strip()
         if ref.endswith(".json") or "/" in ref or "\\" in ref:
             tpl = load_template(ref)
         else:
             tpl = load_builtin_template(ref)
-        return _ok({
-            "name": tpl.get("name"),
-            "description": tpl.get("description"),
-            "variables": tpl.get("variables", {}),
-            "block_count": len(tpl.get("blocks", [])),
-            "blocks_summary": [
-                {"kind": b.get("kind"), "preview": str(b.get("kwargs", {}))}
-                for b in tpl.get("blocks", [])
-            ],
-            "palette": tpl.get("document", {}).get("palette"),
-            "page_size": tpl.get("document", {}).get("page_size"),
-        })
+        return _ok(
+            {
+                "name": tpl.get("name"),
+                "description": tpl.get("description"),
+                "variables": tpl.get("variables", {}),
+                "block_count": len(tpl.get("blocks", [])),
+                "blocks_summary": [
+                    {"kind": b.get("kind"), "preview": str(b.get("kwargs", {}))}
+                    for b in tpl.get("blocks", [])
+                ],
+                "palette": tpl.get("document", {}).get("palette"),
+                "page_size": tpl.get("document", {}).get("page_size"),
+            }
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -362,6 +400,7 @@ def pdf_inspect_template(path: str) -> str:
 # ===========================================================================
 # Header, footer, decoration
 # ===========================================================================
+
 
 def pdf_configure_header(
     doc_id: str,
@@ -384,7 +423,12 @@ def pdf_configure_header(
         s.header.show_on_first_page = show_on_first_page
         s.header.line_below = line_below
         s.log_element("header", left=left, center=center, right=right)
-        return _ok({"doc_id": doc_id, "header": {"left": left, "center": center, "right": right}})
+        return _ok(
+            {
+                "doc_id": doc_id,
+                "header": {"left": left, "center": center, "right": right},
+            }
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -408,7 +452,12 @@ def pdf_configure_footer(
         s.footer.color = color
         s.footer.show_on_first_page = show_on_first_page
         s.log_element("footer", left=left, center=center, right=right)
-        return _ok({"doc_id": doc_id, "footer": {"left": left, "center": center, "right": right}})
+        return _ok(
+            {
+                "doc_id": doc_id,
+                "footer": {"left": left, "center": center, "right": right},
+            }
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -439,6 +488,7 @@ def pdf_set_watermark(doc_id: str, text: str) -> str:
 # Content blocks
 # ===========================================================================
 
+
 def pdf_add_heading(
     doc_id: str,
     text: str,
@@ -461,8 +511,14 @@ def pdf_add_heading(
         s.story.append(Paragraph(text, style))
         s.log_element(
             "heading",
-            replay_kwargs={"text": text, "level": level, "alignment": alignment, "color": color},
-            text=text, level=level,
+            replay_kwargs={
+                "text": text,
+                "level": level,
+                "alignment": alignment,
+                "color": color,
+            },
+            text=text,
+            level=level,
         )
         return _ok({"doc_id": doc_id, "added": "heading", "level": level})
     except Exception as e:
@@ -502,8 +558,13 @@ def pdf_add_paragraph(
         s.log_element(
             "paragraph",
             replay_kwargs={
-                "text": text, "font_size": font_size, "alignment": alignment,
-                "bold": bold, "italic": italic, "color": color, "space_after": space_after,
+                "text": text,
+                "font_size": font_size,
+                "alignment": alignment,
+                "bold": bold,
+                "italic": italic,
+                "color": color,
+                "space_after": space_after,
             },
             chars=len(text),
         )
@@ -551,7 +612,9 @@ def pdf_add_spacer(doc_id: str, height_cm: float = 0.5) -> str:
     try:
         s = get_session(doc_id)
         s.story.append(Spacer(1, height_cm * cm))
-        s.log_element("spacer", replay_kwargs={"height_cm": height_cm}, height_cm=height_cm)
+        s.log_element(
+            "spacer", replay_kwargs={"height_cm": height_cm}, height_cm=height_cm
+        )
         return _ok({"doc_id": doc_id, "added": "spacer"})
     except Exception as e:
         return _err(str(e))
@@ -567,10 +630,16 @@ def pdf_add_horizontal_line(
     try:
         s = get_session(doc_id)
         w = s.content_width() * (width_percent / 100)
-        s.story.append(HRFlowable(width=w, thickness=thickness, color=parse_color(color)))
+        s.story.append(
+            HRFlowable(width=w, thickness=thickness, color=parse_color(color))
+        )
         s.log_element(
             "horizontal_line",
-            replay_kwargs={"width_percent": width_percent, "thickness": thickness, "color": color},
+            replay_kwargs={
+                "width_percent": width_percent,
+                "thickness": thickness,
+                "color": color,
+            },
         )
         return _ok({"doc_id": doc_id, "added": "horizontal_line"})
     except Exception as e:
@@ -592,6 +661,7 @@ def pdf_add_page_break(doc_id: str) -> str:
 # Images and media
 # ===========================================================================
 
+
 def pdf_insert_image(
     doc_id: str,
     image_path: str,
@@ -607,11 +677,15 @@ def pdf_insert_image(
     caption: optional caption shown below the image.
     """
     try:
-        path = Path(image_path)
+        path = resolve_user_path(image_path)
         if not path.exists():
             return _err(f"Image not found: {image_path}")
         s = get_session(doc_id)
-        img = Image(str(path), width=width_cm * cm if width_cm else None, height=height_cm * cm if height_cm else None)
+        img = Image(
+            str(path),
+            width=width_cm * cm if width_cm else None,
+            height=height_cm * cm if height_cm else None,
+        )
         img.hAlign = alignment.upper()
         flowables = [img]
         if caption:
@@ -620,8 +694,11 @@ def pdf_insert_image(
         s.log_element(
             "insert_image",
             replay_kwargs={
-                "image_path": image_path, "width_cm": width_cm, "height_cm": height_cm,
-                "alignment": alignment, "caption": caption,
+                "image_path": image_path,
+                "width_cm": width_cm,
+                "height_cm": height_cm,
+                "alignment": alignment,
+                "caption": caption,
             },
             path=str(path),
         )
@@ -639,6 +716,7 @@ def pdf_add_qr_code(
     """Generate a QR code from data (URL, text, etc.) and insert it inline."""
     try:
         import io
+
         import qrcode
 
         s = get_session(doc_id)
@@ -667,6 +745,7 @@ def pdf_add_qr_code(
 # Tables and callouts
 # ===========================================================================
 
+
 def pdf_add_table(
     doc_id: str,
     data: list[list[str]],
@@ -690,19 +769,19 @@ def pdf_add_table(
         table = Table(data, colWidths=col_widths)
         theme = s.styles["_theme"]
         cmds = [
-            ("GRID",         (0, 0), (-1, -1), 0.5, theme["border"]),
-            ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING",  (0, 0), (-1, -1), 6),
+            ("GRID", (0, 0), (-1, -1), 0.5, theme["border"]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING",   (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING",(0, 0), (-1, -1), 4),
-            ("FONTNAME",     (0, 0), (-1, -1), theme["body_font"]),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("FONTNAME", (0, 0), (-1, -1), theme["body_font"]),
         ]
         if header_row and data:
             cmds += [
                 ("BACKGROUND", (0, 0), (-1, 0), theme["primary"]),
-                ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
-                ("FONTNAME",   (0, 0), (-1, 0), theme["heading_font"]),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), theme["heading_font"]),
             ]
         if zebra_stripes:
             start = 1 if header_row else 0
@@ -715,12 +794,22 @@ def pdf_add_table(
         s.log_element(
             "table",
             replay_kwargs={
-                "data": data, "column_widths_cm": column_widths_cm,
-                "header_row": header_row, "zebra_stripes": zebra_stripes,
+                "data": data,
+                "column_widths_cm": column_widths_cm,
+                "header_row": header_row,
+                "zebra_stripes": zebra_stripes,
             },
-            rows=len(data), cols=len(data[0]),
+            rows=len(data),
+            cols=len(data[0]),
         )
-        return _ok({"doc_id": doc_id, "added": "table", "rows": len(data), "cols": len(data[0])})
+        return _ok(
+            {
+                "doc_id": doc_id,
+                "added": "table",
+                "rows": len(data),
+                "cols": len(data[0]),
+            }
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -744,21 +833,27 @@ def pdf_add_colored_box(
             rows.append([Paragraph(f"<b>{title}</b>", s.styles["h3"])])
         rows.append([Paragraph(text, s.styles["body"])])
         t = Table(rows, colWidths=[s.content_width()])
-        t.setStyle(TableStyle([
-            ("BACKGROUND",   (0, 0), (-1, -1), parse_color(background_color)),
-            ("BOX",          (0, 0), (-1, -1), 1.5, parse_color(border_color)),
-            ("LEFTPADDING",  (0, 0), (-1, -1), 10),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-            ("TOPPADDING",   (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING",(0, 0), (-1, -1), 8),
-        ]))
+        t.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), parse_color(background_color)),
+                    ("BOX", (0, 0), (-1, -1), 1.5, parse_color(border_color)),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
         s.story.append(t)
         s.story.append(Spacer(1, 0.3 * cm))
         s.log_element(
             "colored_box",
             replay_kwargs={
-                "text": text, "background_color": background_color,
-                "border_color": border_color, "title": title,
+                "text": text,
+                "background_color": background_color,
+                "border_color": border_color,
+                "title": title,
             },
             title=title,
         )
@@ -770,6 +865,7 @@ def pdf_add_colored_box(
 # ===========================================================================
 # Signatures
 # ===========================================================================
+
 
 def pdf_add_signature_placeholder(
     doc_id: str,
@@ -812,10 +908,15 @@ def pdf_add_signature_placeholder(
         s.log_element(
             "signature_placeholder",
             replay_kwargs={
-                "label": label, "name": name, "width_cm": width_cm,
-                "height_cm": height_cm, "count": count, "layout": layout,
+                "label": label,
+                "name": name,
+                "width_cm": width_cm,
+                "height_cm": height_cm,
+                "count": count,
+                "layout": layout,
             },
-            count=count, label=label,
+            count=count,
+            label=label,
         )
         return _ok({"doc_id": doc_id, "added": "signature_placeholder", "count": count})
     except Exception as e:
@@ -825,6 +926,7 @@ def pdf_add_signature_placeholder(
 # ===========================================================================
 # Advanced decoration tools
 # ===========================================================================
+
 
 def pdf_add_cover_page(
     doc_id: str,
@@ -857,7 +959,9 @@ def pdf_add_cover_page(
 
         s = get_session(doc_id)
         if s.story:
-            return _err("pdf_add_cover_page must be called before any other content tools.")
+            return _err(
+                "pdf_add_cover_page must be called before any other content tools."
+            )
 
         theme = s.styles.get("_theme", {})
         cover = {
@@ -866,8 +970,10 @@ def pdf_add_cover_page(
             "author": author,
             "date": date,
             "logo_path": logo_path,
-            "background_color": background_color or _color_to_hex(theme.get("primary", parse_color("#1a365d"))),
-            "accent_color": accent_color or _color_to_hex(theme.get("accent", parse_color("#3182ce"))),
+            "background_color": background_color
+            or _color_to_hex(theme.get("primary", parse_color("#1a365d"))),
+            "accent_color": accent_color
+            or _color_to_hex(theme.get("accent", parse_color("#3182ce"))),
             "title_color": title_color,
             "style": style,
             "title_font_size": title_font_size,
@@ -877,10 +983,16 @@ def pdf_add_cover_page(
         s.log_element(
             "cover_page",
             replay_kwargs={
-                "title": title, "subtitle": subtitle, "author": author, "date": date,
-                "logo_path": logo_path, "background_color": background_color,
-                "accent_color": accent_color, "title_color": title_color,
-                "style": style, "title_font_size": title_font_size,
+                "title": title,
+                "subtitle": subtitle,
+                "author": author,
+                "date": date,
+                "logo_path": logo_path,
+                "background_color": background_color,
+                "accent_color": accent_color,
+                "title_color": title_color,
+                "style": style,
+                "title_font_size": title_font_size,
             },
             title=title,
         )
@@ -911,25 +1023,42 @@ def pdf_add_section_divider(
 
         s = get_session(doc_id)
         theme = s.styles.get("_theme", {})
-        pc = parse_color(color) if color else theme.get("primary", parse_color("#1a365d"))
-        ac = parse_color(accent_color) if accent_color else theme.get("accent", parse_color("#3182ce"))
+        pc = (
+            parse_color(color)
+            if color
+            else theme.get("primary", parse_color("#1a365d"))
+        )
+        ac = (
+            parse_color(accent_color)
+            if accent_color
+            else theme.get("accent", parse_color("#3182ce"))
+        )
         heading_font = theme.get("heading_font", "Helvetica-Bold")
 
         s.story.append(Spacer(1, 0.4 * cm))
-        s.story.append(SectionDivider(
-            title=title,
-            width=s.content_width(),
-            primary_color=pc,
-            accent_color=ac,
-            font_name=heading_font,
-            font_size=font_size,
-            div_style=style,
-        ))
+        s.story.append(
+            SectionDivider(
+                title=title,
+                width=s.content_width(),
+                primary_color=pc,
+                accent_color=ac,
+                font_name=heading_font,
+                font_size=font_size,
+                div_style=style,
+            )
+        )
         s.story.append(Spacer(1, 0.4 * cm))
         s.log_element(
             "section_divider",
-            replay_kwargs={"title": title, "style": style, "color": color, "accent_color": accent_color, "font_size": font_size},
-            title=title, style=style,
+            replay_kwargs={
+                "title": title,
+                "style": style,
+                "color": color,
+                "accent_color": accent_color,
+                "font_size": font_size,
+            },
+            title=title,
+            style=style,
         )
         return _ok({"doc_id": doc_id, "added": "section_divider", "style": style})
     except Exception as e:
@@ -966,8 +1095,6 @@ def pdf_add_key_metrics(
         theme = s.styles.get("_theme", {})
         accent = theme.get("accent", parse_color("#3182ce"))
         bg = theme.get("background", parse_color("#f7fafc"))
-        primary = theme.get("primary", parse_color("#1a365d"))
-        body_font = theme.get("body_font", "Helvetica")
         heading_font = theme.get("heading_font", "Helvetica-Bold")
 
         columns = max(1, min(columns, 4))
@@ -995,28 +1122,36 @@ def pdf_add_key_metrics(
 
             inner_w = max(col_w - 16, 40)
             cell_tbl = Table([[val_para], [lbl_para]], colWidths=[inner_w])
-            cell_tbl.setStyle(TableStyle([
-                ("BACKGROUND",   (0, 0), (-1, -1), box_bg),
-                ("BOX",          (0, 0), (-1, -1), 1, theme["border"]),
-                ("TOPPADDING",   (0, 0), (-1, -1), 10),
-                ("BOTTOMPADDING",(0, 0), (-1, -1), 10),
-                ("LEFTPADDING",  (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ]))
+            cell_tbl.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), box_bg),
+                        ("BOX", (0, 0), (-1, -1), 1, theme["border"]),
+                        ("TOPPADDING", (0, 0), (-1, -1), 10),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
             cells.append(cell_tbl)
 
         # Chunk cells into rows of `columns`
         for chunk_start in range(0, len(cells), columns):
-            row = cells[chunk_start:chunk_start + columns]
+            row = cells[chunk_start : chunk_start + columns]
             # Pad with empty cells if last row is short
             while len(row) < columns:
                 row.append("")
             t = Table([row], colWidths=[col_w] * columns)
-            t.setStyle(TableStyle([
-                ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING",  (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-            ]))
+            t.setStyle(
+                TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ]
+                )
+            )
             s.story.append(t)
 
         s.story.append(Spacer(1, 0.3 * cm))
@@ -1055,19 +1190,25 @@ def pdf_add_two_column(
         right_para = Paragraph(right_text, style)
 
         t = Table([[left_para, right_para]], colWidths=[lw, rw])
-        t.setStyle(TableStyle([
-            ("VALIGN",      (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING",(0, 0), (-1, -1), 0),
-            ("TOPPADDING",  (0, 0), (-1, -1), 0),
-        ]))
+        t.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
         s.story.append(t)
         s.story.append(Spacer(1, 0.3 * cm))
         s.log_element(
             "two_column",
             replay_kwargs={
-                "left_text": left_text, "right_text": right_text,
-                "left_width_percent": left_width_percent, "gap_cm": gap_cm,
+                "left_text": left_text,
+                "right_text": right_text,
+                "left_width_percent": left_width_percent,
+                "gap_cm": gap_cm,
             },
         )
         return _ok({"doc_id": doc_id, "added": "two_column"})
@@ -1112,23 +1253,32 @@ def pdf_add_code_block(
             border = parse_color("#cbd5e1")
 
         cap_text = caption or (f"# {language}" if language else "")
-        s.story.append(CodeBlockFlowable(
-            code=code,
-            width=s.content_width(),
-            bg_color=code_bg,
-            border_color=border,
-            text_color=code_fg,
-            font_size=font_size,
-            caption=cap_text,
-            caption_color=theme.get("muted", parse_color("#718096")),
-        ))
+        s.story.append(
+            CodeBlockFlowable(
+                code=code,
+                width=s.content_width(),
+                bg_color=code_bg,
+                border_color=border,
+                text_color=code_fg,
+                font_size=font_size,
+                caption=cap_text,
+                caption_color=theme.get("muted", parse_color("#718096")),
+            )
+        )
         s.story.append(Spacer(1, 0.3 * cm))
         s.log_element(
             "code_block",
-            replay_kwargs={"code": code, "language": language, "caption": caption, "font_size": font_size},
+            replay_kwargs={
+                "code": code,
+                "language": language,
+                "caption": caption,
+                "font_size": font_size,
+            },
             lines=len(code.split("\n")),
         )
-        return _ok({"doc_id": doc_id, "added": "code_block", "lines": len(code.split("\n"))})
+        return _ok(
+            {"doc_id": doc_id, "added": "code_block", "lines": len(code.split("\n"))}
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -1152,23 +1302,34 @@ def pdf_add_banner(
 
         s = get_session(doc_id)
         theme = s.styles.get("_theme", {})
-        bg = parse_color(background_color) if background_color else theme.get("primary", parse_color("#1a365d"))
+        bg = (
+            parse_color(background_color)
+            if background_color
+            else theme.get("primary", parse_color("#1a365d"))
+        )
         tc = parse_color(text_color)
         heading_font = theme.get("heading_font", "Helvetica-Bold")
 
-        s.story.append(BannerFlowable(
-            text=text,
-            width=s.content_width(),
-            background_color=bg,
-            text_color=tc,
-            font_name=heading_font,
-            font_size=font_size,
-            padding_v=padding_v,
-        ))
+        s.story.append(
+            BannerFlowable(
+                text=text,
+                width=s.content_width(),
+                background_color=bg,
+                text_color=tc,
+                font_name=heading_font,
+                font_size=font_size,
+                padding_v=padding_v,
+            )
+        )
         s.story.append(Spacer(1, 0.3 * cm))
         s.log_element(
             "banner",
-            replay_kwargs={"text": text, "background_color": background_color, "text_color": text_color, "font_size": font_size},
+            replay_kwargs={
+                "text": text,
+                "background_color": background_color,
+                "text_color": text_color,
+                "font_size": font_size,
+            },
             text=text,
         )
         return _ok({"doc_id": doc_id, "added": "banner"})
@@ -1179,6 +1340,7 @@ def pdf_add_banner(
 # ===========================================================================
 # Read existing PDFs
 # ===========================================================================
+
 
 def pdf_read_file_info(path: str) -> str:
     """
@@ -1202,7 +1364,9 @@ def pdf_read_file_text(path: str, pages: str = "") -> str:
     try:
         page_list = None
         if pages.strip():
-            page_list = [int(p.strip()) for p in pages.split(",") if p.strip().isdigit()]
+            page_list = [
+                int(p.strip()) for p in pages.split(",") if p.strip().isdigit()
+            ]
         return _ok(read_pdf_text(path, page_numbers=page_list))
     except Exception as e:
         return _err(str(e))

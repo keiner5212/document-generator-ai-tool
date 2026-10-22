@@ -1,0 +1,82 @@
+name: Binaries
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install project
+        run: uv sync --frozen --no-dev
+
+      - name: Build standalone executable
+        run: uv run --no-dev --with pyinstaller python scripts/build_binary.py
+
+      - name: Smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="$(find dist -type f -name 'pdf-ai-tools-*' ! -path '*/_internal/*' ! -name '*.zip' | head -n 1)"
+          test -n "$bin"
+          test -f "$bin"
+          "$bin" --help
+          "$bin" list-palettes | grep -q 'ok: true'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.os }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          merge-multiple: true
+          path: dist
+
+      - name: Pack the skill
+        run: python3 -c "import shutil; shutil.make_archive('dist/pdf-ai-tools-skill', 'zip', 'setup', 'pdf-ai-tools')"
+
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n 1)"
+          tag="v${version}"
+          notes="Unzip the archive for your OS and point the MCP command at the executable inside it. Nothing is unpacked into /tmp. pdf-ai-tools-skill.zip is the agent skill."
+          mapfile -t files < <(find dist -type f -name '*.zip')
+          test "${#files[@]}" -gt 0
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --clobber
+          else
+            gh release create "$tag" "${files[@]}" --draft --title "pdf-ai-tools $tag" --notes "$notes"
+          fi

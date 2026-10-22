@@ -61,7 +61,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-_BUILTIN_DIR = Path(__file__).resolve().parent.parent / "templates"
+from pdf_ai_tools.paths import resolve_installed_or_user, resolve_user_path
+
+_BUILTIN_DIR = Path(__file__).resolve().parent / "templates"
 
 
 # ---------------------------------------------------------------------------
@@ -74,8 +76,10 @@ _VAR_RE = re.compile(r"\{\{(\w+)\}\}")
 def _substitute(value: Any, variables: dict[str, str]) -> Any:
     """Recursively replace {{var}} in strings, dicts, and lists."""
     if isinstance(value, str):
+
         def _replace(m: re.Match) -> str:
             return variables.get(m.group(1), m.group(0))
+
         return _VAR_RE.sub(_replace, value)
     if isinstance(value, dict):
         return {k: _substitute(v, variables) for k, v in value.items()}
@@ -88,14 +92,11 @@ def _substitute(value: Any, variables: dict[str, str]) -> Any:
 # Template file I/O
 # ---------------------------------------------------------------------------
 
+
 def load_template(path: str) -> dict:
     """Load a template JSON from path (checks built-in dir if relative)."""
-    p = Path(path)
-    if not p.is_absolute() and not p.exists():
-        candidate = _BUILTIN_DIR / path
-        if candidate.exists():
-            p = candidate
-    if not p.exists():
+    p = resolve_installed_or_user(path, _BUILTIN_DIR)
+    if not p.is_file():
         raise FileNotFoundError(f"Template not found: {path}")
     data = json.loads(p.read_text(encoding="utf-8"))
     if "blocks" not in data:
@@ -116,10 +117,27 @@ def load_builtin_template(name: str) -> dict:
 
 def save_template(template: dict, path: str) -> Path:
     """Write a template dict to a JSON file."""
-    p = Path(path)
+    p = resolve_user_path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(template, ensure_ascii=False, indent=2), encoding="utf-8")
     return p
+
+
+def _template_summary(path: Path, file_label: str) -> dict | None:
+    from pdf_ai_tools.palette import _read_json_object
+
+    data = _read_json_object(path)
+    if data is None:
+        return None
+    variables = data.get("variables")
+    if not isinstance(variables, dict):
+        variables = {}
+    return {
+        "name": data.get("name", path.stem),
+        "file": file_label,
+        "description": data.get("description", ""),
+        "variables": list(variables),
+    }
 
 
 def list_builtin_templates() -> list[dict[str, str]]:
@@ -127,41 +145,28 @@ def list_builtin_templates() -> list[dict[str, str]]:
         return []
     result = []
     for f in sorted(_BUILTIN_DIR.glob("*.json")):
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            result.append({
-                "name": data.get("name", f.stem),
-                "file": f.name,
-                "description": data.get("description", ""),
-                "variables": list(data.get("variables", {}).keys()),
-            })
-        except Exception:
-            pass
+        row = _template_summary(f, f.name)
+        if row is not None:
+            result.append(row)
     return result
 
 
 def list_templates_in_dir(directory: str) -> list[dict[str, str]]:
-    d = Path(directory)
+    d = resolve_user_path(directory)
     if not d.exists():
         return []
     result = []
     for f in sorted(d.glob("*.json")):
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            result.append({
-                "name": data.get("name", f.stem),
-                "file": str(f),
-                "description": data.get("description", ""),
-                "variables": list(data.get("variables", {}).keys()),
-            })
-        except Exception:
-            pass
+        row = _template_summary(f, str(f))
+        if row is not None:
+            result.append(row)
     return result
 
 
 # ---------------------------------------------------------------------------
 # Snapshot a session into a template
 # ---------------------------------------------------------------------------
+
 
 def session_to_template(
     session,
@@ -195,6 +200,7 @@ def session_to_template(
 # Render engine
 # ---------------------------------------------------------------------------
 
+
 def render_template(
     template: dict,
     output_path: str,
@@ -214,14 +220,14 @@ def render_template(
     tpl = _substitute(template, variables)
 
     doc_cfg = tpl.get("document", {})
-    result = json.loads(tools.pdf_create_document(
+    result = tools.pdf_create_document(
         output_path=output_path,
         page_size=doc_cfg.get("page_size", "A4"),
         margin_left_cm=doc_cfg.get("margin_left_cm", 2.5),
         margin_right_cm=doc_cfg.get("margin_right_cm", 2.5),
         margin_top_cm=doc_cfg.get("margin_top_cm", 2.5),
         margin_bottom_cm=doc_cfg.get("margin_bottom_cm", 2.5),
-    ))
+    )
     if not result.get("ok"):
         raise RuntimeError(f"pdf_create_document failed: {result.get('error')}")
 
@@ -231,11 +237,16 @@ def render_template(
     palette_ref = doc_cfg.get("palette")
     if palette_ref:
         try:
-            if palette_ref.endswith(".json") or "/" in palette_ref or "\\" in palette_ref:
+            if (
+                palette_ref.endswith(".json")
+                or "/" in palette_ref
+                or "\\" in palette_ref
+            ):
                 palette_data = load_palette(palette_ref)
             else:
                 palette_data = load_builtin_palette(palette_ref)
             from pdf_ai_tools.session import get_session
+
             get_session(doc_id).apply_palette(palette_data)
         except Exception as exc:
             raise ValueError(f"Cannot load palette '{palette_ref}': {exc}") from exc
@@ -288,27 +299,27 @@ def render_template(
     # Replay blocks — keep in sync with tools.py _replay_log kinds
     dispatch: dict[str, Any] = {
         # Core content
-        "heading":               tools.pdf_add_heading,
-        "paragraph":             tools.pdf_add_paragraph,
-        "bullet_list":           tools.pdf_add_bullet_list,
-        "numbered_list":         tools.pdf_add_numbered_list,
-        "table":                 tools.pdf_add_table,
-        "colored_box":           tools.pdf_add_colored_box,
-        "horizontal_line":       tools.pdf_add_horizontal_line,
-        "spacer":                tools.pdf_add_spacer,
-        "page_break":            tools.pdf_add_page_break,
+        "heading": tools.pdf_add_heading,
+        "paragraph": tools.pdf_add_paragraph,
+        "bullet_list": tools.pdf_add_bullet_list,
+        "numbered_list": tools.pdf_add_numbered_list,
+        "table": tools.pdf_add_table,
+        "colored_box": tools.pdf_add_colored_box,
+        "horizontal_line": tools.pdf_add_horizontal_line,
+        "spacer": tools.pdf_add_spacer,
+        "page_break": tools.pdf_add_page_break,
         # Media
-        "insert_image":          tools.pdf_insert_image,
-        "qr_code":               tools.pdf_add_qr_code,
+        "insert_image": tools.pdf_insert_image,
+        "qr_code": tools.pdf_add_qr_code,
         # Signatures
         "signature_placeholder": tools.pdf_add_signature_placeholder,
         # Advanced decoration
-        "cover_page":            tools.pdf_add_cover_page,
-        "section_divider":       tools.pdf_add_section_divider,
-        "key_metrics":           tools.pdf_add_key_metrics,
-        "two_column":            tools.pdf_add_two_column,
-        "code_block":            tools.pdf_add_code_block,
-        "banner":                tools.pdf_add_banner,
+        "cover_page": tools.pdf_add_cover_page,
+        "section_divider": tools.pdf_add_section_divider,
+        "key_metrics": tools.pdf_add_key_metrics,
+        "two_column": tools.pdf_add_two_column,
+        "code_block": tools.pdf_add_code_block,
+        "banner": tools.pdf_add_banner,
     }
 
     for i, block in enumerate(tpl.get("blocks", [])):
@@ -317,13 +328,12 @@ def render_template(
         fn = dispatch.get(kind)
         if fn is None:
             raise ValueError(f"Block {i}: unknown kind '{kind}'")
-        raw = fn(doc_id, **kwargs)
-        res = json.loads(raw)
+        res = fn(doc_id, **kwargs)
         if not res.get("ok"):
             raise RuntimeError(f"Block {i} ({kind}) failed: {res.get('error')}")
 
     # Save
-    save_res = json.loads(tools.pdf_save_document(doc_id))
+    save_res = tools.pdf_save_document(doc_id)
     if not save_res.get("ok"):
         raise RuntimeError(f"pdf_save_document failed: {save_res.get('error')}")
 

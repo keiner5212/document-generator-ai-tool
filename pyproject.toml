@@ -1,44 +1,43 @@
 [project]
 name = "pdf-ai-tools"
 version = "0.1.0"
-description = "AI-powered PDF creation and reading toolkit (MCP server)"
+description = "AI-friendly PDF creation and reading tools exposed as MCP tools"
 readme = "README.md"
-license = { file = "LICENSE" }
 authors = [
-    { name = "Keiner Alvarado" }
+    { name = "Keiner Alvarado", email = "kjgameplay0000@gmail.com" }
 ]
-maintainers = [
-    { name = "Keiner Alvarado" }
-]
-keywords = ["pdf", "ai", "mcp", "reportlab", "document-generation"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Office/Business",
-    "Topic :: Text Processing :: Markup",
-]
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
-    "reportlab>=4.2.0",
-    "pypdf>=5.0.0",
+    "mcp>=2.3.0",
     "Pillow>=10.0.0",
-    "fastmcp>=2.0.0",
+    "pypdf>=5.0.0",
     "qrcode[pil]>=7.4.0",
+    "reportlab>=4.2.0",
+    "toon-format>=1.2.0",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["pdf_ai_tools", "mcp_server"]
-
-[dependency-groups]
-dev = []
 
 [project.scripts]
-pdf-mcp = "mcp_server.server:main"
+pdf-ai-tools = "pdf_ai_tools.cli:main"
+pdf-ai-tools-mcp = "pdf_ai_tools.mcp_server:main"
+
+[build-system]
+requires = ["uv_build>=0.11.16,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff.lint]
+# EXE002: this tree is stored with the executable bit forced on.
+# BLE001: MCP tools return _err(str(e)) instead of raising into the agent.
+ignore = ["EXE002", "BLE001"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from toon_format import loads
 
 from pdf_ai_tools import tools
@@ -336,6 +337,11 @@ def test_use_font_and_render_unicode(tmp_path) -> None:
 
 
 def test_unknown_characters_use_a_fallback_font(tmp_path) -> None:
+    from pdf_ai_tools import fonts
+
+    if fonts.find_font_for({ord(c) for c in "日本語のテキスト"}) is None:
+        pytest.skip("no installed font can draw Japanese text")
+
     out = tmp_path / "fallback.pdf"
     created = tools.pdf_create_document(str(out))
     doc_id = created["doc_id"]
@@ -386,11 +392,19 @@ def test_save_can_keep_a_page_range(tmp_path) -> None:
     assert len(reader.pages) == 2
 
 
-def test_right_to_left_text_is_ordered(tmp_path) -> None:
+def test_bidi_reorders_visual_order() -> None:
     from pdf_ai_tools.bidi import reorder_visual
 
     assert reorder_visual("ا ب") == "ب ا"
     assert reorder_visual("abc") == "abc"
+
+
+def test_right_to_left_text_is_ordered(tmp_path) -> None:
+    from pdf_ai_tools import fonts
+
+    family = fonts.find_family("Noto Sans Arabic")
+    if family is None or not family.embeddable:
+        pytest.skip("Noto Sans Arabic is not installed on this machine")
 
     out = tmp_path / "rtl.pdf"
     created = tools.pdf_create_document(str(out))

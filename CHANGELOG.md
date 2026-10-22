@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-23
+
+### Fixed
+- The font tests skip with a reason when the machine has no font for the script, so a
+  machine without the Noto and CJK fonts no longer fails the run.
+
 ## [0.4.0] - 2026-10-22
 
 ### Added

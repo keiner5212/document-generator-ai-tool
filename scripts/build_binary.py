@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY = ROOT / "src" / "pdf_ai_tools" / "frozen_main.py"
 PKG = ROOT / "src" / "pdf_ai_tools"
+HOOKS = ROOT / "scripts" / "pyinstaller_hooks"
 
 _SYSTEMS = {"Linux": "linux", "Darwin": "macos", "Windows": "windows"}
 _ARCHS = {
@@ -61,6 +62,10 @@ def main() -> None:
         str(ROOT / "build" / "pyinstaller"),
         "--specpath",
         str(ROOT / "build"),
+        "--additional-hooks-dir",
+        str(HOOKS),
+        "--exclude-module",
+        "mcp.cli",
         "--collect-submodules",
         "pdf_ai_tools",
         "--collect-all",
@@ -71,8 +76,6 @@ def main() -> None:
         "PIL",
         "--collect-all",
         "qrcode",
-        "--collect-all",
-        "mcp",
         "--collect-all",
         "toon_format",
         "--copy-metadata",

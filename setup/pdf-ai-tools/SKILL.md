@@ -27,7 +27,8 @@ Always follow this exact sequence:
 ```
 pdf_create_document          <- start session, get doc_id
 pdf_apply_palette            <- apply color theme (do this early)
-pdf_set_metadata             <- title, author, subject
+pdf_use_font                 <- only when the text is not Latin
+pdf_set_metadata             <- title, author, subject, language
 pdf_configure_header         <- per-page header
 pdf_configure_footer         <- per-page footer
 pdf_enable_page_numbers      <- if multi-page
@@ -40,7 +41,40 @@ Always keep `doc_id` from `pdf_create_document` - every other tool requires it.
 
 ---
 
-## 2. Palette Selection Guide
+## 2. Templates
+
+### Built-in templates
+
+| id | title | use it for | variables |
+|---|---|---|---|
+| `invoice` | Invoice | Standard service invoice with line-item table and signature | company_name, company_address, client_name, client_address, invoice_number, date, due_date, total |
+| `contract` | Service Contract | Simple service agreement with two party signatures | party_a, party_b, address_a, address_b, service, value, start_date, end_date, governing_law |
+| `report` | Executive Report | Structured executive report with summary box, table, and findings list | title, subtitle, author, department, date, summary, conclusion |
+
+A template renders in one call: create, fill, save, close.
+
+```
+pdf_render_template(template_name_or_path="invoice", output_path="output/invoice.pdf",
+                    variables_json='{"company_name": "Acme", "client_name": "Jane"}')
+```
+
+Every `{{placeholder}}` must be filled. A missing one fails the call and names what is missing. The template carries its own palette and page size; to change either, build the document by hand instead.
+
+### When no built-in template fits
+
+Pass the template object inline. Nothing is written to disk first.
+
+```
+pdf_render_template(output_path="output/report.pdf", template_json='{ ... }')
+```
+
+`template_json` is a JSON object with `name`, `description`, `variables`, `document`, `metadata`, `header`, `footer`, `page_numbers`, `watermark` and `blocks`. A block is `{"kind": "<kind>", "kwargs": {...}}`. The exact block kinds and their arguments are listed in the `pdf_render_template` tool description - read it before writing one. Check a draft with `pdf_inspect_template(template_json='{ ... }')` before rendering it.
+
+Never write a template into the MCP install folder. To keep a layout, save it in the project with `pdf_save_template(doc_id, "templates/my_layout.json")` and render it by path.
+
+---
+
+## 3. Palette Selection Guide
 
 Choose the palette that matches the document's purpose:
 
@@ -66,7 +100,52 @@ Apply with: `pdf_apply_palette(doc_id, "palette_name")`
 
 ---
 
-## 3. Document Design Principles
+## 4. Fonts and Languages
+
+The built-in fonts (Helvetica, Times, Courier) only cover Latin text. Any other script needs a font that is installed on this machine.
+
+### Find a font
+
+```
+pdf_list_fonts(query="")            # every installed font
+pdf_list_fonts(query="noto")        # filter by family, style or path
+pdf_list_fonts(for_text="日本語")   # only the fonts that can draw this text
+```
+
+Each row gives the family, the style, the path and `embeddable`. A font with `embeddable: false` uses PostScript outlines and cannot go into a PDF, so do not pick it.
+
+### Apply a font
+
+```
+pdf_use_font(doc_id, body="Noto Sans", heading="Noto Serif", code="DejaVu Sans Mono")
+```
+
+`body` is the text font, `heading` the title font, `code` the monospace font. The bold, italic and bold-italic members of the same family are picked up automatically. A file path works too:
+
+```
+pdf_use_font(doc_id, body="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+```
+
+### What happens without a font
+
+Characters the current font cannot draw are drawn with a fallback font from this machine, so a document that mixes scripts keeps working. When no installed font can draw a character, the call fails and names it.
+
+### Language
+
+```
+pdf_set_metadata(doc_id, language="ja-JP")
+```
+
+The tag is a BCP 47 language tag. Screen readers use it to pick the right voice.
+
+- Chinese, Japanese and Korean text wraps per character, so it needs no spaces.
+- Arabic, Hebrew, Devanagari and other complex scripts are shaped, so the letters join
+  correctly, and right to left text is put in the right order.
+- Text that mixes a right to left script with Latin text keeps the Latin text in place.
+
+---
+
+## 5. Document Design Principles
 
 ### Visual Hierarchy
 - Use **H1** for document title only (once per document or section)
@@ -96,7 +175,7 @@ Apply with: `pdf_apply_palette(doc_id, "palette_name")`
 
 ---
 
-## 4. Decoration Recipes
+## 6. Decoration Recipes
 
 ### Modern Business Report
 ```
@@ -165,11 +244,23 @@ pdf_add_section_divider("Feature Story", style="diamond")
 pdf_add_paragraph(...)
 ```
 
+### Long Report with a Table of Contents
+```
+pdf_create_document -> pdf_apply_palette("ocean_blue")
+pdf_add_table_of_contents(levels=[1, 2], title="Contents")   <- before the headings
+pdf_add_heading("Chapter 1", level=1)
+pdf_add_paragraph(...)
+pdf_add_page_break()
+pdf_add_heading("Chapter 2", level=1)
+pdf_add_paragraph(...)
+pdf_enable_page_numbers(True, format="page_of_total")       <- "Page 2 of 8"
+```
+
 ---
 
-## 5. Cover Page Guide (`pdf_add_cover_page`)
+## 7. Cover Page Guide (`pdf_add_cover_page`)
 
-- Call it **before any other content tool** (the tool enforces this)
+- The cover is always the first page. Call it whenever you like, it is placed first
 - Pick a style based on document type:
   - `stripe` - safe, professional, works with any palette
   - `split` - modern, bold, great for tech/startup docs
@@ -180,9 +271,10 @@ pdf_add_paragraph(...)
 
 ---
 
-## 6. Section Divider Guide (`pdf_add_section_divider`)
+## 8. Section Divider Guide (`pdf_add_section_divider`)
 
 Match divider style to document personality:
+
 - `line` - neutral, universal, formal reports
 - `bar` - modern, clean, corporate documents
 - `underline` - classic, academic, editorial
@@ -190,7 +282,7 @@ Match divider style to document personality:
 
 ---
 
-## 7. Table Best Practices
+## 9. Table Best Practices
 
 - **Always include a header row** for data tables (`header_row=True`)
 - Use `zebra_stripes=True` for tables with 4+ rows
@@ -198,10 +290,12 @@ Match divider style to document personality:
   - Example: `[8, 3, 3]` for a wide description + 2 narrow value columns
 - Keep cell text concise - wrap long text in the paragraph manually
 - For tables with 1 column, consider `pdf_add_colored_box` instead
+- Long tables repeat the header row on every page. Turn that off with `repeat_header=False`
+- Align numeric columns with `column_alignments=["left", "right"]`
 
 ---
 
-## 8. When to Use Each Callout Tool
+## 10. When to Use Each Callout Tool
 
 | Tool | When to use |
 |---|---|
@@ -214,30 +308,40 @@ Match divider style to document personality:
 
 ---
 
-## 9. Multi-page Document Checklist
+## 11. Links
+
+- External link in body text: `<a href="https://example.com">text</a>`
+- Internal link: `<a href="#section">text</a>` with `pdf_add_anchor(doc_id, "section")` as the target
+- The link text inherits the paragraph style. Keep link labels short
+
+---
+
+## 12. Multi-page Document Checklist
 
 - [ ] `pdf_configure_header` - always set for multi-page
 - [ ] `pdf_configure_footer` - company / confidentiality info
 - [ ] `pdf_enable_page_numbers(True)` - always for formal docs
 - [ ] `show_on_first_page=False` on header/footer when using a cover page
-- [ ] Add `pdf_add_page_break()` between major chapters
+- [ ] `pdf_add_table_of_contents` - for documents with chapters
+- [ ] `pdf_add_page_break()` between major chapters
 - [ ] `pdf_add_section_divider` before each chapter
 
 ---
 
-## 10. Common Mistakes to Avoid
+## 13. Common Mistakes to Avoid
 
-- **Do NOT** call `pdf_add_cover_page` after adding any content
 - **Do NOT** call `pdf_save_document` more than once (session closes)
 - **Do NOT** forget `doc_id` - every tool call requires it
 - **Do NOT** add headings without any following paragraph
 - **Do NOT** stack multiple H1 headings on the same page
 - **Do NOT** mix font overrides with palette - trust the palette
 - **Do NOT** use very dark `background_color` on `pdf_add_colored_box` with dark text
+- **Do NOT** invent a new template when a built-in one fits
+- **Do NOT** write template or palette files into the MCP install folder
 
 ---
 
-## 11. Template + Palette Combos (Quick Presets)
+## 14. Template + Palette Combos (Quick Presets)
 
 | Preset name | palette | template | extra |
 |---|---|---|---|
@@ -251,12 +355,13 @@ Match divider style to document personality:
 
 ---
 
-## 12. Inspecting Built-in Resources
+## 15. Inspecting Built-in Resources
 
 ```
 pdf_list_palettes()           # see all 17 palettes
-pdf_list_templates()          # see built-in templates
-pdf_inspect_template("name")  # see variables before rendering
+pdf_list_fonts(query="noto")   # see the fonts installed on this machine
+pdf_list_templates()          # see built-in templates and their variables
+pdf_inspect_template("invoice")  # see variables and blocks before rendering
 pdf_read_file_info("path")    # inspect existing PDF metadata
 pdf_read_file_text("path")    # extract text from existing PDF
 ```

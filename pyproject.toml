@@ -1,6 +1,6 @@
 [project]
 name = "pdf-ai-tools"
-version = "0.1.0"
+version = "0.4.0"
 description = "AI-friendly PDF creation and reading tools exposed as MCP tools"
 readme = "README.md"
 authors = [
@@ -11,9 +11,11 @@ dependencies = [
     "mcp>=2.3.0",
     "Pillow>=10.0.0",
     "pypdf>=5.0.0",
+    "python-bidi>=0.6",
     "qrcode[pil]>=7.4.0",
     "reportlab>=4.2.0",
     "toon-format>=1.2.0",
+    "uharfbuzz>=0.39",
 ]
 
 [project.scripts]

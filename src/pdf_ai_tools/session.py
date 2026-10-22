@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4, LETTER, landscape
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
 from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate
 from reportlab.platypus.flowables import Flowable
+from reportlab.platypus.tableofcontents import TableOfContents
 
 from pdf_ai_tools.paths import resolve_user_path
 from pdf_ai_tools.styles import (
@@ -62,7 +66,6 @@ class HeaderFooterConfig:
 class SignaturePlaceholder:
     label: str
     name: str
-    page_hint: int | None = None
 
 
 # ===========================================================================
@@ -81,12 +84,14 @@ class SignatureBox(Flowable):
         name: str = "",
         border_color=None,
         fill_color=None,
+        font_name: str = "Helvetica",
     ):
         super().__init__()
         self.width = width
         self.height = height
         self.label = label
         self.name = name
+        self.font_name = font_name
         self.border_color = border_color or colors.HexColor("#cbd5e1")
         self.fill_color = fill_color or colors.HexColor("#f8fafc")
 
@@ -96,11 +101,11 @@ class SignatureBox(Flowable):
         c.setFillColor(self.fill_color)
         c.rect(0, 0, self.width, self.height, stroke=1, fill=1)
         c.setFillColor(colors.HexColor("#64748b"))
-        c.setFont("Helvetica", 8)
+        c.setFont(self.font_name, 8)
         c.drawString(6, self.height - 14, self.label)
         if self.name:
             c.setFillColor(colors.black)
-            c.setFont("Helvetica", 10)
+            c.setFont(self.font_name, 10)
             c.drawString(6, 8, self.name)
         c.setDash(2, 2)
         c.line(6, 22, self.width - 6, 22)
@@ -196,6 +201,7 @@ class CoverPageFlowable(Flowable):
         title_color = parse_color(c.get("title_color", "#ffffff"))
         title_sz = float(c.get("title_font_size", 38))
         heading_font = s.styles.get("_theme", {}).get("heading_font", "Helvetica-Bold")
+        title, heading_font = s.canvas_text(title, heading_font)
 
         canv.setFillColor(title_color)
         canv.setFont(heading_font, title_sz)
@@ -215,7 +221,16 @@ class CoverPageFlowable(Flowable):
         if current:
             lines.append(current)
         for i, line in enumerate(lines):
-            canv.drawCentredString(pw / 2, title_y - i * (title_sz * 1.25), line)
+            s.draw_text(
+                canv,
+                line,
+                0,
+                title_y - i * (title_sz * 1.25),
+                title_sz,
+                heading_font,
+                align="center",
+                width=pw,
+            )
 
         # --- Subtitle ---
         subtitle = c.get("subtitle", "")
@@ -223,20 +238,43 @@ class CoverPageFlowable(Flowable):
             sub_sz = float(c.get("subtitle_font_size", 15))
             sub_y = title_y - len(lines) * title_sz * 1.25 - 14
             body_font = s.styles.get("_theme", {}).get("body_font", "Helvetica")
-            canv.setFont(body_font, sub_sz)
+            subtitle, body_font = s.canvas_text(subtitle, body_font)
             canv.setFillColor(parse_color(c.get("subtitle_color", "#a0aec0")))
-            canv.drawCentredString(pw / 2, sub_y, subtitle)
+            s.draw_text(
+                canv,
+                subtitle,
+                0,
+                sub_y,
+                sub_sz,
+                body_font,
+                align="center",
+                width=pw,
+            )
 
         # --- Author / date (bottom meta strip) ---
         author = c.get("author", "")
         date = c.get("date", "")
         meta = " · ".join(filter(None, [author, date]))
+        body_font = s.styles.get("_theme", {}).get("body_font", "Helvetica")
+        meta, body_font = s.canvas_text(meta, body_font)
         if meta:
-            canv.setFont("Helvetica", 10)
             canv.setFillColor(parse_color(c.get("meta_color", "#94a3b8")))
-            canv.drawCentredString(pw / 2, ph * 0.1, meta)
+            s.draw_text(
+                canv, meta, 0, ph * 0.1, 10, body_font, align="center", width=pw
+            )
 
         canv.restoreState()
+
+
+def _draw_diamond(canv, cx: float, cy: float, size: float) -> None:
+    """Draw a filled diamond centred on (cx, cy)."""
+    path = canv.beginPath()
+    path.moveTo(cx, cy + size)
+    path.lineTo(cx + size, cy)
+    path.lineTo(cx, cy - size)
+    path.lineTo(cx - size, cy)
+    path.close()
+    canv.drawPath(path, stroke=0, fill=1)
 
 
 class SectionDivider(Flowable):
@@ -298,16 +336,16 @@ class SectionDivider(Flowable):
             # ◆ TITLE ◆
             canv.setFont(fn, fs)
             tw = canv.stringWidth(self.title, fn, fs)
-            deco = "◆  "
-            dw = canv.stringWidth(deco, fn, fs)
-            total = tw + dw * 2
-            x0 = (w - total) / 2
+            title_x = (w - tw) / 2
+            size = fs * 0.3
+            gap = fs * 0.6
+            cy = mid - fs * 0.32 + fs * 0.35
             canv.setFillColor(ac)
-            canv.drawString(x0, mid - fs * 0.32, deco)
+            _draw_diamond(canv, title_x - gap - size, cy, size)
             canv.setFillColor(pc)
-            canv.drawString(x0 + dw, mid - fs * 0.32, self.title)
+            canv.drawString(title_x, mid - fs * 0.32, self.title)
             canv.setFillColor(ac)
-            canv.drawString(x0 + dw + tw, mid - fs * 0.32, "  ◆")
+            _draw_diamond(canv, title_x + tw + gap + size, cy, size)
 
         else:  # "line" (default) — ─── TITLE ───
             canv.setFont(fn, fs)
@@ -371,6 +409,8 @@ class CodeBlockFlowable(Flowable):
         font_size: float = 9,
         caption: str = "",
         caption_color=None,
+        font_name: str = "Courier",
+        caption_font: str = "Helvetica",
     ):
         super().__init__()
         self.code = code
@@ -381,6 +421,8 @@ class CodeBlockFlowable(Flowable):
         self.fs = font_size
         self.caption = caption
         self.cap_color = caption_color or text_color
+        self.font_name = font_name
+        self.caption_font = caption_font
         self._padding = 10
         lines = code.split("\n")
         line_h = font_size * 1.4
@@ -398,12 +440,12 @@ class CodeBlockFlowable(Flowable):
         canv.rect(0, 0, self.width, self.height, stroke=1, fill=1)
 
         if self.caption:
-            canv.setFont("Helvetica", self.fs - 1)
+            canv.setFont(self.caption_font, self.fs - 1)
             canv.setFillColor(self.cap_color)
             cap_y = self.height - p + 2
             canv.drawString(p, cap_y, self.caption)
 
-        canv.setFont("Courier", self.fs)
+        canv.setFont(self.font_name, self.fs)
         canv.setFillColor(self.tc)
         lines = self.code.split("\n")
         y = self.height - p - line_h
@@ -415,8 +457,90 @@ class CodeBlockFlowable(Flowable):
 
 
 # ===========================================================================
+# Document template
+# ===========================================================================
+
+
+class _DocTemplate(BaseDocTemplate):
+    """Document template that reports headings to the table of contents."""
+
+    def __init__(self, session: PDFSession, *args, **kwargs):
+        self._session = session
+        super().__init__(*args, **kwargs)
+
+    def beforeDocument(self):
+        # Every build pass numbers the headings the same way.
+        self._session._toc_counter = 0
+
+    def afterFlowable(self, flowable):
+        level = getattr(flowable, "_toc_level", None)
+        if level is None or level not in self._session.toc_levels:
+            return
+        text = flowable.getPlainText().strip()
+        if not text:
+            return
+        key = f"toc{self._session._toc_counter}"
+        self._session._toc_counter += 1
+        self.canv.bookmarkPage(key)
+        self.canv.addOutlineEntry(text, key, level=level - 1, closed=False)
+        self.notify("TOCEntry", (level - 1, text, self.page, key))
+
+
+# ===========================================================================
 # Session
 # ===========================================================================
+
+
+DEFAULT_FONTS = {
+    "body": "Helvetica",
+    "heading": "Helvetica-Bold",
+    "code": "Courier",
+    "bold": "Helvetica-Bold",
+    "italic": "Helvetica-Oblique",
+    "bold_italic": "Helvetica-BoldOblique",
+}
+
+_CJK_RANGES = (
+    (0x2E80, 0x2FFF),
+    (0x3000, 0x30FF),
+    (0x3400, 0x4DBF),
+    (0x4E00, 0x9FFF),
+    (0xAC00, 0xD7AF),
+    (0xF900, 0xFAFF),
+    (0xFF00, 0xFFEF),
+)
+
+
+def _has_cjk(text: str) -> bool:
+    """True when the text contains Chinese, Japanese or Korean characters."""
+    return any(any(low <= ord(ch) <= high for low, high in _CJK_RANGES) for ch in text)
+
+
+def _wrap_unsupported(text: str, missing: set[int]) -> str:
+    """Wrap the characters the font cannot draw in a font that can."""
+    from pdf_ai_tools import fonts as fonts_module
+
+    parts = re.split(r"(<[^>]*>)", text)
+    out: list[str] = []
+    for part in parts:
+        if part.startswith("<") and part.endswith(">"):
+            out.append(part)
+            continue
+        for is_missing, chunk in fonts_module.split_by_coverage(part, missing):
+            if not is_missing:
+                out.append(chunk)
+                continue
+            chars = frozenset(ord(c) for c in chunk)
+            font_name = fonts_module.font_for_chars(chars)
+            if font_name is None:
+                sample = "".join(sorted(chunk))[:8]
+                raise ValueError(
+                    f"No installed font can draw {sample!r}. "
+                    "Call pdf_list_fonts(for_text=...) to see what is available."
+                )
+            safe = chunk.replace("&", "&amp;").replace("<", "&lt;")
+            out.append(f'<font name="{font_name}">{safe}</font>')
+    return "".join(out)
 
 
 class PDFSession:
@@ -427,22 +551,30 @@ class PDFSession:
         output_path: str | Path,
         page_size: str = "A4",
         margins_cm: tuple[float, float, float, float] = (2.5, 2.5, 2.5, 2.5),
-        theme: str = "default",
     ):
         self.doc_id = str(uuid.uuid4())[:8]
         self.output_path = resolve_user_path(output_path)
         self.page_size_name = page_size.upper().replace("-", "_")
         self.pagesize = PAGE_SIZES.get(self.page_size_name, A4)
         self.margins = margins_cm  # (left, right, top, bottom) in cm
-        self.theme_name = theme
-        self.styles = build_styles(theme)
+        self.theme_name = "default"
+        self.palette_ref: str | None = None
+        self.palette: dict | None = None
+        self.fonts: dict[str, str] = dict(DEFAULT_FONTS)
+        self.styles = build_styles()
         self.story: list = []
         self.header = HeaderFooterConfig()
         self.footer = HeaderFooterConfig()
         self.metadata: dict[str, str] = {}
         self.signatures: list[SignaturePlaceholder] = []
+        self.anchors: set[str] = set()
+        self.link_targets: list[str] = []
         self.watermark_text: str | None = None
         self.page_numbers: bool = False
+        self.page_number_format: str = "page"
+        self.total_pages: int | None = None
+        self.toc_levels: list[int] = []
+        self._toc_counter = 0
         self.cover_page: dict | None = None  # set by pdf_add_cover_page
         self._element_log: list[dict[str, Any]] = []
         self._replay_log: list[dict[str, Any]] = []
@@ -465,9 +597,163 @@ class PDFSession:
         _, _, top, bottom = self.margins
         return self.pagesize[1] - (top + bottom) * cm
 
-    def apply_palette(self, palette: dict) -> None:
-        self.styles = build_styles_from_palette(palette)
+    def apply_palette(self, palette: dict, ref: str = "") -> None:
+        self.palette = palette
         self.theme_name = palette.get("name", "custom")
+        self.palette_ref = ref or None
+        self.rebuild_styles()
+
+    def rebuild_styles(self) -> None:
+        """Rebuild the paragraph styles with the current palette and fonts."""
+        if self.palette:
+            self.styles = build_styles_from_palette(self.palette, self.fonts)
+        else:
+            self.styles = build_styles(self.fonts)
+
+    def apply_fonts(
+        self,
+        body: str = "",
+        heading: str = "",
+        code: str = "",
+        variants: dict[str, str] | None = None,
+    ) -> None:
+        """Set the fonts used for body, headings and code."""
+        if body:
+            self.fonts["body"] = body
+        if heading:
+            self.fonts["heading"] = heading
+        if code:
+            self.fonts["code"] = code
+        for role, name in (variants or {}).items():
+            if name:
+                self.fonts[role] = name
+        if self.palette:
+            self.palette["fonts"] = {
+                "body": self.fonts["body"],
+                "heading": self.fonts["heading"],
+            }
+        self.rebuild_styles()
+
+    def prepare_text(self, text: str, style) -> str:
+        """
+        Make a piece of text renderable with the current fonts.
+
+        Characters the font cannot draw are wrapped in a fallback font taken
+        from this machine. Raises ValueError when no installed font can draw
+        them.
+        """
+        from pdf_ai_tools import fonts as fonts_module
+
+        # Right to left text is put in visual order first, so the font
+        # markup added below is not reordered.
+        text = self._prepare_direction(text, style)
+        missing = fonts_module.missing_characters(text, style.fontName)
+        if missing:
+            text = _wrap_unsupported(text, missing)
+        if _has_cjk(text):
+            style.wordWrap = "CJK"
+        if fonts_module.is_shapable(style.fontName):
+            style.shaping = 1
+        return text
+
+    def _prepare_direction(self, text: str, style) -> str:
+        """Handle right to left text."""
+        from pdf_ai_tools.bidi import has_bidi_support, has_rtl, reorder_rtl
+
+        if not has_rtl(text):
+            return text
+        if has_bidi_support():
+            style.wordWrap = "RTL"
+            return text
+        # No bidi support on this machine: put the text in visual order here
+        # and leave the letter forms unshaped.
+        style.shaping = 0
+        return reorder_rtl(text)
+
+    def font_covering(self, text: str, preferred: str) -> str:
+        """A registered font that can draw every character of the text."""
+        from pdf_ai_tools import fonts as fonts_module
+
+        if not fonts_module.missing_characters(text, preferred):
+            return preferred
+        chars = {ord(c) for c in text if c not in "\n\r\t"}
+        fallback = fonts_module.find_font_for(chars)
+        if fallback is None:
+            return preferred
+        return fonts_module.register_font(fallback.path, subfont=fallback.subfont)
+
+    def canvas_text(self, text: str, preferred: str) -> tuple[str, str]:
+        """Text and font for text drawn straight on the canvas."""
+        from pdf_ai_tools.bidi import reorder_visual
+
+        return reorder_visual(text), self.font_covering(text, preferred)
+
+    def font_runs(self, text: str, preferred: str) -> list[tuple[str, str]]:
+        """
+        Split text into runs of one font each.
+
+        Used for text drawn straight on the canvas, where one string can only
+        carry one font. Every run gets a font that can draw it.
+        """
+        from pdf_ai_tools import fonts as fonts_module
+
+        missing = fonts_module.missing_characters(text, preferred)
+        if not missing:
+            return [(preferred, text)] if text else []
+        runs: list[tuple[str, str]] = []
+        for is_missing, chunk in fonts_module.split_by_coverage(text, missing):
+            if not is_missing:
+                runs.append((preferred, chunk))
+                continue
+            chars = frozenset(ord(c) for c in chunk)
+            font_name = fonts_module.font_for_chars(chars) or preferred
+            runs.append((font_name, chunk))
+        return runs
+
+    def draw_text(
+        self,
+        canv,
+        text: str,
+        x: float,
+        y: float,
+        size: float,
+        preferred: str,
+        align: str = "left",
+        width: float = 0,
+    ) -> None:
+        """Draw text on the canvas, one font per run."""
+        runs = self.font_runs(text, preferred)
+        if not runs:
+            return
+        total = sum(canv.stringWidth(chunk, font, size) for font, chunk in runs)
+        if align == "center":
+            x = x + width / 2 - total / 2
+        elif align == "right":
+            x = x + width - total
+        for font, chunk in runs:
+            canv.setFont(font, size)
+            canv.drawString(x, y, chunk)
+            x += canv.stringWidth(chunk, font, size)
+
+    def enable_toc(self, levels: list[int]) -> TableOfContents:
+        """Insert a table of contents that collects the document headings."""
+        self.toc_levels = sorted({level for level in levels if level in (1, 2, 3)})
+        body = self.styles["body"]
+        toc = TableOfContents()
+        toc.levelStyles = [
+            ParagraphStyle(
+                f"TOCLevel{index}",
+                parent=body,
+                fontSize=size,
+                leading=size * 1.35,
+                leftIndent=14 * index,
+                alignment=TA_LEFT,
+                spaceAfter=2,
+            )
+            for index, size in enumerate((11, 10, 9))
+        ]
+        self.story.append(toc)
+        return toc
 
     # ------------------------------------------------------------------
     # Canvas callbacks
@@ -496,17 +782,38 @@ class PDFSession:
                 return
             if not (cfg.left or cfg.center or cfg.right):
                 return
-            canv.setFont("Helvetica", cfg.font_size)
+            body_font = self.styles.get("_theme", {}).get("body_font", "Helvetica")
             try:
                 canv.setFillColor(parse_color(cfg.color))
             except Exception:
                 canv.setFillColor(colors.grey)
             if cfg.left:
-                canv.drawString(left_m * cm, y, cfg.left)
+                left, _ = self.canvas_text(cfg.left, body_font)
+                self.draw_text(canv, left, left_m * cm, y, cfg.font_size, body_font)
             if cfg.center:
-                canv.drawCentredString(w / 2, y, cfg.center)
+                center, _ = self.canvas_text(cfg.center, body_font)
+                self.draw_text(
+                    canv,
+                    center,
+                    w / 2,
+                    y,
+                    cfg.font_size,
+                    body_font,
+                    align="center",
+                    width=w,
+                )
             if cfg.right:
-                canv.drawRightString(w - right_m * cm, y, cfg.right)
+                right, _ = self.canvas_text(cfg.right, body_font)
+                self.draw_text(
+                    canv,
+                    right,
+                    w - right_m * cm,
+                    y,
+                    cfg.font_size,
+                    body_font,
+                    align="right",
+                    width=right_m * cm,
+                )
             if cfg.line_below and is_header:
                 canv.saveState()
                 canv.setStrokeColor(colors.HexColor("#e2e8f0"))
@@ -520,14 +827,38 @@ class PDFSession:
         if self.page_numbers:
             canv.setFont("Helvetica", 8)
             canv.setFillColor(colors.grey)
-            canv.drawCentredString(w / 2, footer_y - 12, f"Page {page_num}")
+            if self.page_number_format == "page_of_total" and self.total_pages:
+                label = f"Page {page_num} of {self.total_pages}"
+            else:
+                label = f"Page {page_num}"
+            canv.drawCentredString(w / 2, footer_y - 12, label)
 
     # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------
 
     def build(self) -> Path:
+        missing = [t for t in dict.fromkeys(self.link_targets) if t not in self.anchors]
+        if missing:
+            raise ValueError(
+                f"Link target(s) not found: {missing}. "
+                "Create them with pdf_add_anchor(doc_id, 'name')."
+            )
+        if not self.story:
+            raise ValueError(
+                "The document has no content. Add at least one content tool "
+                "before saving."
+            )
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        doc = self._make_doc_template()
+        self._run_build(doc)
+        if self.page_number_format == "page_of_total":
+            self.total_pages = doc.page
+            doc = self._make_doc_template()
+            self._run_build(doc)
+        return self.output_path
+
+    def _make_doc_template(self) -> BaseDocTemplate:
         left, right, top, bottom = self.margins
         frame = Frame(
             left * cm,
@@ -544,20 +875,34 @@ class PDFSession:
         def on_page(canv, doc):
             self._draw_header_footer(canv, doc)
 
-        doc = BaseDocTemplate(
+        doc = _DocTemplate(
+            self,
             str(self.output_path),
             pagesize=self.pagesize,
             title=self.metadata.get("title", ""),
             author=self.metadata.get("author", ""),
             subject=self.metadata.get("subject", ""),
+            keywords=self.metadata.get("keywords", ""),
+            creator=self.metadata.get("creator", ""),
+            lang=self.metadata.get("language", ""),
             leftMargin=left * cm,
             rightMargin=right * cm,
             topMargin=top * cm,
             bottomMargin=bottom * cm,
         )
         doc.addPageTemplates([PageTemplate(id="main", frames=[frame], onPage=on_page)])
-        doc.build(self.story)
-        return self.output_path
+        return doc
+
+    def _run_build(self, doc: BaseDocTemplate) -> None:
+        # ReportLab flags a flowable it had to defer. The story is reused when
+        # the document is built twice, so the stale flag has to go.
+        for flowable in self.story:
+            if hasattr(flowable, "_postponed"):
+                delattr(flowable, "_postponed")
+        if self.toc_levels:
+            doc.multiBuild(self.story)
+        else:
+            doc.build(self.story)
 
     # ------------------------------------------------------------------
 
@@ -570,15 +915,15 @@ class PDFSession:
             "elements": len(self._element_log),
             "element_log": self._element_log,
             "replay_log": self._replay_log,
-            "signatures": [
-                {"label": s.label, "name": s.name, "page_hint": s.page_hint}
-                for s in self.signatures
-            ],
+            "signatures": [{"label": s.label, "name": s.name} for s in self.signatures],
             "metadata": self.metadata,
             "header": self.header.as_dict(),
             "footer": self.footer.as_dict(),
             "watermark": self.watermark_text,
             "page_numbers": self.page_numbers,
+            "page_number_format": self.page_number_format,
+            "total_pages": self.total_pages,
+            "table_of_contents": bool(self.toc_levels),
             "has_cover": self.cover_page is not None,
         }
 

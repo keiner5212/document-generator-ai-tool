@@ -16,38 +16,6 @@ _BUILTIN_DIR = Path(__file__).resolve().parent / "palettes"
 # ---------------------------------------------------------------------------
 
 
-def _default_palette(name: str = "custom") -> dict:
-    return {
-        "name": name,
-        "description": "",
-        "colors": {
-            "primary": "#1a365d",
-            "secondary": "#2c5282",
-            "accent": "#3182ce",
-            "muted": "#718096",
-            "border": "#e2e8f0",
-            "background": "#f7fafc",
-        },
-        "fonts": {
-            "body": "Helvetica",
-            "heading": "Helvetica-Bold",
-        },
-        "sizes": {
-            "body": 11,
-            "h1": 22,
-            "h2": 16,
-            "h3": 13,
-            "caption": 9,
-        },
-        "document": {
-            "page_size": "A4",
-            "margins_cm": [2.5, 2.5, 2.5, 2.5],
-            "page_numbers": False,
-            "watermark": None,
-        },
-    }
-
-
 def _validate(data: dict) -> None:
     required_colors = {
         "primary",

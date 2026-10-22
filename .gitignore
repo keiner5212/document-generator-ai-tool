@@ -25,10 +25,6 @@ output/
 .env.*
 *.local
 
-# User-created assets (built-in JSON stays tracked)
-src/pdf_ai_tools/palettes/my_*.json
-src/pdf_ai_tools/templates/my_*.json
-
 # ignore all md files (except README.md and the portable skill)
 *.md
 !setup/**/*.md

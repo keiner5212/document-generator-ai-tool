@@ -1,4 +1,5 @@
-"""MCP server for pdf-ai-tools.
+"""
+MCP server for pdf-ai-tools.
 
 Run via:
     uv run pdf-ai-tools-mcp
@@ -17,7 +18,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from mcp.server.mcpserver import MCPServer
 
-from pdf_ai_tools import tools
+from pdf_ai_tools import template as template_module, tools
 from pdf_ai_tools.render import render
 
 
@@ -28,22 +29,44 @@ def package_version() -> str:
         return "0.1.0"
 
 
+_TEMPLATE_CATALOG = template_module.describe_builtin_templates()
+_TEMPLATE_SCHEMA = template_module.describe_template_schema()
+
+
+def _instructions() -> str:
+    return (
+        "Create, decorate, and read PDF documents with these tools. "
+        "Do not write Python or import reportlab. Use these tools only.\n"
+        "Call order: pdf_create_document, pdf_apply_palette, pdf_set_metadata, "
+        "pdf_configure_header and pdf_configure_footer, pdf_enable_page_numbers, "
+        "the content tools, then pdf_save_document. "
+        "Keep the doc_id from pdf_create_document, every later call needs it. "
+        "pdf_save_document writes the file and closes the session.\n"
+        "Built-in palette and template names are the JSON file stem "
+        "(ocean_blue, invoice), not the display name inside the file. "
+        "A bare name loads the copy shipped with the server. "
+        "A value that ends in .json, or any path with a slash, loads that file "
+        "from the client machine.\n"
+        "Templates: prefer a built-in template. pdf_render_template fills a "
+        "template and writes the PDF in one call. When no built-in template "
+        "fits, pass the template object inline with template_json; its schema "
+        "is in the pdf_render_template description. Check a template with "
+        "pdf_inspect_template before rendering it.\n"
+        "Every tool result is TOON text, not JSON. ok is true or false, and "
+        "error says what failed.\n"
+        "Fonts: the built-in fonts only cover Latin text. For any other "
+        "script call pdf_list_fonts(for_text=...) to see the installed fonts "
+        "that can draw it, then pdf_use_font(doc_id, body=...) to apply one. "
+        "Characters the current font cannot draw are drawn with a fallback "
+        "font automatically.\n"
+        f"{_TEMPLATE_CATALOG}"
+    )
+
+
 mcp = MCPServer(
     "pdf-ai-tools",
     version=package_version(),
-    instructions=(
-        "Create, decorate, and read PDF documents. "
-        "Do not write Python or import reportlab. Use these tools. "
-        "Order: pdf_create_document, then pdf_apply_palette, pdf_set_metadata, "
-        "header and footer, content tools, then pdf_save_document. "
-        "Keep doc_id from pdf_create_document. "
-        "Built-in palette and template names are the JSON file stem "
-        "(ocean_blue, invoice), not the display name inside the file. "
-        "A path ending in .json, or any path with a slash, loads that file. "
-        "pdf_render_template variables_json is a JSON object string. "
-        "Every tool result is TOON text, not JSON. "
-        "pdf_save_document closes the session."
-    ),
+    instructions=_instructions(),
 )
 
 _register_tool = mcp.tool
@@ -64,6 +87,13 @@ def _tool(*args, **kwargs):
 
 mcp.tool = _tool
 
+
+def _with_schema(fn) -> str:
+    """Tool description: the docstring plus the template schema."""
+    doc = (fn.__doc__ or "").strip()
+    return f"{doc}\n\n{_TEMPLATE_SCHEMA}"
+
+
 # --- Lifecycle ---
 mcp.tool()(tools.pdf_create_document)
 mcp.tool()(tools.pdf_set_metadata)
@@ -77,17 +107,25 @@ mcp.tool()(tools.pdf_apply_palette)
 mcp.tool()(tools.pdf_export_palette)
 mcp.tool()(tools.pdf_create_palette_from_colors)
 
+# --- Fonts ---
+mcp.tool()(tools.pdf_list_fonts)
+mcp.tool()(tools.pdf_use_font)
+
 # --- Templates ---
 mcp.tool()(tools.pdf_list_templates)
-mcp.tool()(tools.pdf_render_template)
+mcp.tool(description=_with_schema(tools.pdf_render_template))(tools.pdf_render_template)
 mcp.tool()(tools.pdf_save_template)
-mcp.tool()(tools.pdf_inspect_template)
+mcp.tool(description=_with_schema(tools.pdf_inspect_template))(
+    tools.pdf_inspect_template
+)
 
 # --- Layout ---
 mcp.tool()(tools.pdf_configure_header)
 mcp.tool()(tools.pdf_configure_footer)
 mcp.tool()(tools.pdf_enable_page_numbers)
 mcp.tool()(tools.pdf_set_watermark)
+mcp.tool()(tools.pdf_add_table_of_contents)
+mcp.tool()(tools.pdf_add_anchor)
 
 # --- Content ---
 mcp.tool()(tools.pdf_add_heading)
@@ -133,8 +171,10 @@ def create_invoice(company: str = "Acme Corp", client: str = "Client Name") -> s
     """Quick-start: generate a professional invoice PDF."""
     return (
         f"Create an invoice PDF for {company} billing {client}.\n\n"
-        "Use pdf_render_template with template='invoice' and output_path='output/invoice.pdf'.\n"
-        "Fill variables: company_name, client_name, invoice_number, date, due_date, total.\n"
+        "Use pdf_render_template with template_name_or_path='invoice' and "
+        "output_path='output/invoice.pdf'.\n"
+        "Fill variables: company_name, company_address, client_name, "
+        "client_address, invoice_number, date, due_date, total.\n"
         "Or build manually: pdf_create_document -> pdf_apply_palette('corporate_slate') -> "
         "pdf_configure_header -> pdf_add_table -> pdf_add_signature_placeholder -> pdf_save_document."
     )
@@ -145,9 +185,25 @@ def create_contract(party_a: str = "Company A", party_b: str = "Company B") -> s
     """Quick-start: generate a service contract with two party signatures."""
     return (
         f"Create a service contract between {party_a} and {party_b}.\n\n"
-        "Use pdf_render_template with template='contract' and output_path='output/contract.pdf'.\n"
-        "Fill variables: party_a, party_b, address_a, address_b, service, value, start_date, end_date, governing_law.\n"
+        "Use pdf_render_template with template_name_or_path='contract' and "
+        "output_path='output/contract.pdf'.\n"
+        "Fill variables: party_a, party_b, address_a, address_b, service, value, "
+        "start_date, end_date, governing_law.\n"
         "Palette applied automatically: legal_classic."
+    )
+
+
+@mcp.prompt()
+def create_report(topic: str = "Quarterly results") -> str:
+    """Quick-start: generate an executive report with a table of contents."""
+    return (
+        f"Create an executive report PDF about {topic}.\n\n"
+        "Use pdf_render_template with template_name_or_path='report' and "
+        "output_path='output/report.pdf'.\n"
+        "Fill variables: title, subtitle, author, department, date, summary, conclusion.\n"
+        "For a longer document built step by step, start with pdf_create_document, "
+        "call pdf_add_table_of_contents before the headings, then pdf_add_heading, "
+        "pdf_add_paragraph and pdf_add_table, and finish with pdf_save_document."
     )
 
 

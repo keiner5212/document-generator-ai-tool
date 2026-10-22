@@ -29,6 +29,7 @@ def read_pdf_info(path: str | Path) -> dict[str, Any]:
             "/Title",
             "/Author",
             "/Subject",
+            "/Keywords",
             "/Creator",
             "/Producer",
             "/CreationDate",

@@ -5,7 +5,6 @@ from __future__ import annotations
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import cm
 
 ALIGN_MAP = {
     "left": TA_LEFT,
@@ -14,52 +13,18 @@ ALIGN_MAP = {
     "justify": TA_JUSTIFY,
 }
 
-# Built-in named themes (kept for backward compat; palettes extend this idea)
-THEMES = {
-    "default": {
-        "primary": "#1a365d",
-        "secondary": "#2c5282",
-        "accent": "#3182ce",
-        "muted": "#718096",
-        "border": "#e2e8f0",
-        "background": "#f7fafc",
-        "body_font": "Helvetica",
-        "heading_font": "Helvetica-Bold",
-        "sizes": {"body": 11, "h1": 22, "h2": 16, "h3": 13, "caption": 9},
-    },
-    "corporate": {
-        "primary": "#1e3a5f",
-        "secondary": "#334155",
-        "accent": "#0ea5e9",
-        "muted": "#64748b",
-        "border": "#cbd5e1",
-        "background": "#f8fafc",
-        "body_font": "Helvetica",
-        "heading_font": "Helvetica-Bold",
-        "sizes": {"body": 11, "h1": 22, "h2": 16, "h3": 13, "caption": 9},
-    },
-    "minimal": {
-        "primary": "#000000",
-        "secondary": "#333333",
-        "accent": "#555555",
-        "muted": "#888888",
-        "border": "#dddddd",
-        "background": "#ffffff",
-        "body_font": "Helvetica",
-        "heading_font": "Helvetica-Bold",
-        "sizes": {"body": 11, "h1": 22, "h2": 16, "h3": 13, "caption": 9},
-    },
-    "elegant": {
-        "primary": "#2d1b4e",
-        "secondary": "#4a306d",
-        "accent": "#9b59b6",
-        "muted": "#7f8c8d",
-        "border": "#d5c4e0",
-        "background": "#faf8fc",
-        "body_font": "Times-Roman",
-        "heading_font": "Times-Bold",
-        "sizes": {"body": 11, "h1": 22, "h2": 16, "h3": 13, "caption": 9},
-    },
+# Base styles used when no palette has been applied. Palettes are the styling
+# mechanism; this is the neutral starting point.
+DEFAULT_THEME = {
+    "primary": "#1a365d",
+    "secondary": "#2c5282",
+    "accent": "#3182ce",
+    "muted": "#718096",
+    "border": "#e2e8f0",
+    "background": "#f7fafc",
+    "body_font": "Helvetica",
+    "heading_font": "Helvetica-Bold",
+    "sizes": {"body": 11, "h1": 22, "h2": 16, "h3": 13, "caption": 9},
 }
 
 
@@ -157,20 +122,6 @@ def _build_paragraph_styles(theme: dict) -> dict:
             leading=cap_sz * 1.35,
             textColor=_resolve(theme, "muted"),
         ),
-        "quote": ParagraphStyle(
-            "Quote",
-            parent=base["Normal"],
-            fontName=theme["body_font"],
-            fontSize=body_sz - 1,
-            leading=(body_sz - 1) * 1.4,
-            textColor=_resolve(theme, "secondary"),
-            leftIndent=cm,
-            borderColor=_resolve(theme, "accent"),
-            borderWidth=2,
-            borderPadding=6,
-            spaceBefore=6,
-            spaceAfter=6,
-        ),
     }
     # Store resolved ReportLab color objects for reuse in table styles etc.
     styles["_theme"] = {
@@ -186,13 +137,19 @@ def _build_paragraph_styles(theme: dict) -> dict:
     return styles
 
 
-def build_styles(theme_name: str = "default") -> dict:
-    """Build paragraph styles for a built-in named theme."""
-    theme = THEMES.get(theme_name, THEMES["default"])
+def build_styles(fonts: dict[str, str] | None = None) -> dict:
+    """Build the base paragraph styles used before a palette is applied."""
+    theme = dict(DEFAULT_THEME)
+    if fonts:
+        theme["body_font"] = fonts.get("body") or theme["body_font"]
+        theme["heading_font"] = fonts.get("heading") or theme["heading_font"]
     return _build_paragraph_styles(theme)
 
 
-def build_styles_from_palette(palette: dict) -> dict:
+def build_styles_from_palette(
+    palette: dict,
+    fonts: dict[str, str] | None = None,
+) -> dict:
     """
     Build paragraph styles from a palette dict (as stored in palette JSON files).
 
@@ -206,6 +163,7 @@ def build_styles_from_palette(palette: dict) -> dict:
     """
     c = palette.get("colors", {})
     f = palette.get("fonts", {})
+    chosen = fonts or {}
     theme = {
         "primary": c.get("primary", "#1a365d"),
         "secondary": c.get("secondary", "#2c5282"),
@@ -213,8 +171,8 @@ def build_styles_from_palette(palette: dict) -> dict:
         "muted": c.get("muted", "#718096"),
         "border": c.get("border", "#e2e8f0"),
         "background": c.get("background", "#f7fafc"),
-        "body_font": f.get("body", "Helvetica"),
-        "heading_font": f.get("heading", "Helvetica-Bold"),
+        "body_font": chosen.get("body") or f.get("body", "Helvetica"),
+        "heading_font": chosen.get("heading") or f.get("heading", "Helvetica-Bold"),
         "sizes": palette.get("sizes", {}),
     }
     return _build_paragraph_styles(theme)

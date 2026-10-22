@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 from typing import Literal
 
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import (
+    AnchorFlowable,
     HRFlowable,
     Image,
     PageBreak,
@@ -21,6 +24,7 @@ from reportlab.platypus.flowables import KeepTogether
 from pdf_ai_tools.paths import resolve_user_path
 from pdf_ai_tools.reader import read_pdf_info, read_pdf_page_dimensions, read_pdf_text
 from pdf_ai_tools.session import (
+    PAGE_SIZES,
     PDFSession,
     SignatureBox,
     close_session,
@@ -28,6 +32,20 @@ from pdf_ai_tools.session import (
     list_sessions,
 )
 from pdf_ai_tools.styles import ALIGN_MAP, parse_color
+
+TABLE_ALIGN = {
+    "left": "LEFT",
+    "center": "CENTER",
+    "right": "RIGHT",
+}
+
+# Internal links are written as <a href="#name">text</a>.
+_LINK_TARGET_RE = re.compile(r"""href\s*=\s*["']#([^"'\s]+)["']""")
+
+
+def _link_targets(text: str) -> list[str]:
+    """Names of the internal link targets used in a piece of text."""
+    return _LINK_TARGET_RE.findall(text)
 
 
 def _ok(data: dict) -> dict:
@@ -57,7 +75,6 @@ def _color_to_hex(color_obj) -> str:
 def pdf_create_document(
     output_path: str,
     page_size: str = "A4",
-    theme: str = "default",
     margin_left_cm: float = 2.5,
     margin_right_cm: float = 2.5,
     margin_top_cm: float = 2.5,
@@ -67,10 +84,15 @@ def pdf_create_document(
     Start a new PDF document session.
 
     Returns a doc_id required by all other tools.
-    Themes (built-in): default, corporate, minimal, elegant.
-    Use pdf_apply_palette to override with a custom color palette.
+    page_size: A4, LETTER, A4_LANDSCAPE or LETTER_LANDSCAPE.
+    Colors and fonts come from a palette: call pdf_apply_palette right after.
     """
     try:
+        size_name = page_size.upper().replace("-", "_")
+        if size_name not in PAGE_SIZES:
+            return _err(
+                f"Unknown page_size '{page_size}'. Available: {sorted(PAGE_SIZES)}"
+            )
         s = PDFSession(
             output_path=output_path,
             page_size=page_size,
@@ -80,7 +102,6 @@ def pdf_create_document(
                 margin_top_cm,
                 margin_bottom_cm,
             ),
-            theme=theme,
         )
         s.log_element("create", output_path=str(s.output_path))
         return _ok(
@@ -100,8 +121,17 @@ def pdf_set_metadata(
     author: str = "",
     subject: str = "",
     keywords: str = "",
+    language: str = "",
+    creator: str = "",
 ) -> str:
-    """Set PDF document metadata (title, author, subject, keywords)."""
+    """
+    Set PDF document metadata.
+
+    title, author, subject, keywords: document information.
+    language: the document language as a BCP 47 tag, e.g. 'ja-JP' or 'ar-EG'.
+              Screen readers use it to pick the right voice.
+    creator: the tool that produced the document.
+    """
     try:
         s = get_session(doc_id)
         for key, val in [
@@ -109,6 +139,8 @@ def pdf_set_metadata(
             ("author", author),
             ("subject", subject),
             ("keywords", keywords),
+            ("language", language),
+            ("creator", creator),
         ]:
             if val:
                 s.metadata[key] = val
@@ -118,11 +150,43 @@ def pdf_set_metadata(
         return _err(str(e))
 
 
-def pdf_save_document(doc_id: str) -> str:
-    """Build and write the PDF to disk. The session is closed after saving."""
+def _extract_pages(path: Path, spec: str) -> Path:
+    """Keep only the listed pages of a PDF, 1-based, e.g. '1-3,5'."""
+    from pypdf import PdfReader, PdfWriter
+
+    reader = PdfReader(str(path))
+    writer = PdfWriter()
+    wanted: list[int] = []
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start, end = part.split("-", 1)
+            wanted.extend(range(int(start), int(end) + 1))
+        else:
+            wanted.append(int(part))
+    for number in wanted:
+        if 1 <= number <= len(reader.pages):
+            writer.add_page(reader.pages[number - 1])
+    temporary = path.with_name(path.stem + ".pages.pdf")
+    with temporary.open("wb") as fh:
+        writer.write(fh)
+    temporary.replace(path)
+    return path
+
+
+def pdf_save_document(doc_id: str, pages: str = "") -> str:
+    """
+    Build and write the PDF to disk. The session is closed after saving.
+
+    pages: keep only these pages, 1-based, e.g. '1-3,5'. Empty writes all.
+    """
     try:
         s = get_session(doc_id)
         path = s.build()
+        if pages.strip():
+            path = _extract_pages(path, pages)
         summary = s.summary()
         close_session(doc_id)
         return _ok({"doc_id": doc_id, "saved_to": str(path), "summary": summary})
@@ -146,6 +210,121 @@ def pdf_list_documents() -> str:
 # ===========================================================================
 # Palette tools
 # ===========================================================================
+
+
+def pdf_list_fonts(
+    query: str = "",
+    for_text: str = "",
+    directory: str = "",
+    limit: int = 100,
+) -> str:
+    """
+    List the fonts installed on this machine.
+
+    query: filter by family, style or path, e.g. 'noto' or 'arabic'.
+    for_text: only fonts that can draw every character of this text.
+    directory: extra directory to search, added to the system font folders.
+    limit: how many fonts to return.
+    """
+    try:
+        from pdf_ai_tools import fonts as fonts_module
+
+        if for_text.strip():
+            rows = fonts_module.fonts_covering(for_text, directory)
+            total = len(rows)
+        else:
+            rows = fonts_module.list_fonts(query, directory)
+            total = len(rows)
+        shown = rows[: max(1, limit)]
+        return _ok(
+            {
+                "count": len(shown),
+                "total": total,
+                "fonts": shown,
+            }
+        )
+    except Exception as e:
+        return _err(str(e))
+
+
+def pdf_use_font(
+    doc_id: str,
+    body: str = "",
+    heading: str = "",
+    code: str = "",
+) -> str:
+    """
+    Use fonts installed on this machine for the document.
+
+    Each argument is a font family name ('Noto Sans', 'DejaVu Sans'),
+    a font file path, or empty to leave that role unchanged.
+    body: text font. heading: title font. code: monospace font.
+    The bold, italic and bold-italic variants of the family are used when
+    the document asks for bold or italic text.
+    """
+    try:
+        from pdf_ai_tools import fonts as fonts_module
+
+        s = get_session(doc_id)
+        applied = {}
+        variants: dict[str, str] = {}
+        for role, value in (("body", body), ("heading", heading), ("code", code)):
+            ref = value.strip()
+            if not ref:
+                continue
+            if ref.lower().endswith((".ttf", ".otf", ".ttc", ".otc")):
+                path = Path(ref).expanduser()
+                if not path.is_file():
+                    return _err(f"Font file not found: {ref}")
+                roles = fonts_module.register_family(path)
+            else:
+                found = fonts_module.find_family(ref, directory="")
+                if found is None:
+                    return _err(
+                        f"No installed font family named '{ref}'. "
+                        "Call pdf_list_fonts to see what is available."
+                    )
+                if not found.embeddable:
+                    return _err(
+                        f"The family '{found.family}' is installed but uses "
+                        "PostScript outlines, which cannot be embedded in a "
+                        "PDF. Call pdf_list_fonts to find an embeddable one."
+                    )
+                path = found.path
+                roles = fonts_module.register_family(path)
+                if found.style.lower() not in (
+                    "regular",
+                    "book",
+                    "roman",
+                    "",
+                ):
+                    roles["regular"] = fonts_module.register_font(
+                        path, subfont=found.subfont
+                    )
+            registered = roles.get("regular")
+            if not registered:
+                return _err(f"Could not register the font '{ref}'")
+            applied[role] = registered
+            variants.update(
+                {key: value for key, value in roles.items() if key != "regular"}
+            )
+        if not applied:
+            return _err("Give at least one of body, heading or code.")
+        s.apply_fonts(
+            body=applied.get("body", ""),
+            heading=applied.get("heading", ""),
+            code=applied.get("code", ""),
+            variants=variants,
+        )
+        return _ok(
+            {
+                "doc_id": doc_id,
+                "applied": applied,
+                "fonts": dict(s.fonts),
+            }
+        )
+    except Exception as e:
+        return _err(str(e))
 
 
 def pdf_list_palettes(extra_dir: str = "") -> str:
@@ -183,7 +362,7 @@ def pdf_apply_palette(doc_id: str, palette_name_or_path: str) -> str:
             palette = load_palette(ref)
         else:
             palette = load_builtin_palette(ref)
-        s.apply_palette(palette)
+        s.apply_palette(palette, ref)
         s.log_element("apply_palette", palette=palette.get("name"))
         return _ok(
             {
@@ -234,7 +413,6 @@ def pdf_create_palette_from_colors(
     h2_size: float = 16,
     h3_size: float = 13,
     caption_size: float = 9,
-    page_size: str = "A4",
 ) -> str:
     """
     Create and save a custom color palette JSON from individual color values.
@@ -267,12 +445,6 @@ def pdf_create_palette_from_colors(
                 "h3": h3_size,
                 "caption": caption_size,
             },
-            "document": {
-                "page_size": page_size,
-                "margins_cm": [2.5, 2.5, 2.5, 2.5],
-                "page_numbers": False,
-                "watermark": None,
-            },
         }
         saved = save_palette(palette, output_path)
         return _ok({"saved_to": str(saved), "palette": palette})
@@ -287,10 +459,11 @@ def pdf_create_palette_from_colors(
 
 def pdf_list_templates(extra_dir: str = "") -> str:
     """
-    List available document templates.
+    List the available document templates with their variables.
 
-    Built-in templates: invoice, contract, report.
-    Pass extra_dir to list templates in another directory.
+    Each row gives the id to pass to pdf_render_template, the description,
+    the variables it needs, its palette and its block count.
+    Pass extra_dir to also list templates in another directory.
     """
     try:
         from pdf_ai_tools.template import list_builtin_templates, list_templates_in_dir
@@ -303,32 +476,66 @@ def pdf_list_templates(extra_dir: str = "") -> str:
         return _err(str(e))
 
 
+def _load_template(template_name_or_path: str, template_json: str) -> dict:
+    """Load a template from a built-in name, a file path, or an inline object."""
+    from pdf_ai_tools.template import (
+        load_builtin_template,
+        load_inline_template,
+        load_template,
+    )
+
+    ref = template_name_or_path.strip()
+    inline = template_json.strip()
+    if ref and inline:
+        raise ValueError(
+            "Give either template_name_or_path or template_json, not both."
+        )
+    if inline:
+        return load_inline_template(inline)
+    if not ref:
+        raise ValueError(
+            "Give a built-in template name, a path to a .json file, or template_json."
+        )
+    if ref.endswith(".json") or "/" in ref or "\\" in ref:
+        return load_template(ref)
+    return load_builtin_template(ref)
+
+
 def pdf_render_template(
-    template_name_or_path: str,
-    output_path: str,
+    template_name_or_path: str = "",
+    output_path: str = "",
     variables_json: str = "{}",
+    template_json: str = "",
 ) -> str:
     """
     Render a template into a PDF, filling all {{variable}} placeholders.
 
-    template_name_or_path: built-in name (e.g. 'invoice') OR path to .json file.
+    output_path is required: the PDF file to write.
+
+    Give the template in one of two ways:
+      template_name_or_path: built-in name (e.g. 'invoice') OR path to a .json file.
+      template_json: the template object inline, as a JSON string. Use this when
+                     no built-in template fits. The schema is in this
+                     description; no file has to be written first.
+    Use exactly one of them.
+
     variables_json: JSON object string mapping variable names to values.
                     Example: '{"company_name": "Acme", "client_name": "John"}'
+                    Every {{placeholder}} in the template must be filled.
     """
     try:
-        from pdf_ai_tools.template import (
-            load_builtin_template,
-            load_template,
-            render_template,
-        )
+        from pdf_ai_tools.template import render_template
 
-        ref = template_name_or_path.strip()
-        if ref.endswith(".json") or "/" in ref or "\\" in ref:
-            tpl = load_template(ref)
-        else:
-            tpl = load_builtin_template(ref)
+        if not output_path.strip():
+            return _err("output_path is required: the PDF file to write")
 
+        tpl = _load_template(template_name_or_path, template_json)
+
+        if len(variables_json) > 64 * 1024:
+            return _err("variables_json is too large (limit 64 KB)")
         variables = json.loads(variables_json) if variables_json.strip() else {}
+        if not isinstance(variables, dict):
+            return _err("variables_json must be a JSON object")
         saved_to = render_template(tpl, output_path, variables)
         return _ok(
             {
@@ -350,9 +557,10 @@ def pdf_save_template(
     """
     Save the current document's layout as a reusable template JSON.
 
-    The template captures all header/footer config, metadata, and the
-    sequence of content blocks. Variables can be added manually by editing
-    the JSON and replacing fixed strings with {{var_name}} placeholders.
+    The template captures all header/footer config, metadata, the palette and
+    the sequence of content blocks. Variables can be added by editing the
+    JSON and replacing fixed strings with {{var_name}} placeholders, or by
+    passing the template object straight to pdf_render_template.
     """
     try:
         from pdf_ai_tools.template import save_template, session_to_template
@@ -365,20 +573,22 @@ def pdf_save_template(
         return _err(str(e))
 
 
-def pdf_inspect_template(path: str) -> str:
+def pdf_inspect_template(
+    template_name_or_path: str = "",
+    template_json: str = "",
+) -> str:
     """
     Load and display a template's structure without rendering it.
+
+    Give the template the same way pdf_render_template takes it:
+      template_name_or_path: built-in name (e.g. 'invoice') OR path to a .json file.
+      template_json: the template object inline, as a JSON string.
+    Use exactly one of them.
 
     Returns: name, description, required variables, and block summary.
     """
     try:
-        from pdf_ai_tools.template import load_builtin_template, load_template
-
-        ref = path.strip()
-        if ref.endswith(".json") or "/" in ref or "\\" in ref:
-            tpl = load_template(ref)
-        else:
-            tpl = load_builtin_template(ref)
+        tpl = _load_template(template_name_or_path, template_json)
         return _ok(
             {
                 "name": tpl.get("name"),
@@ -462,13 +672,28 @@ def pdf_configure_footer(
         return _err(str(e))
 
 
-def pdf_enable_page_numbers(doc_id: str, enabled: bool = True) -> str:
-    """Show page numbers centered at the bottom of every page."""
+def pdf_enable_page_numbers(
+    doc_id: str,
+    enabled: bool = True,
+    format: Literal["page", "page_of_total"] = "page",
+) -> str:
+    """
+    Show page numbers centered at the bottom of every page.
+
+    format: 'page' draws 'Page 3'; 'page_of_total' draws 'Page 3 of 12'.
+    """
     try:
         s = get_session(doc_id)
         s.page_numbers = enabled
-        s.log_element("page_numbers", enabled=enabled)
-        return _ok({"doc_id": doc_id, "page_numbers": enabled})
+        s.page_number_format = format
+        s.log_element("page_numbers", enabled=enabled, format=format)
+        return _ok(
+            {
+                "doc_id": doc_id,
+                "page_numbers": enabled,
+                "format": format,
+            }
+        )
     except Exception as e:
         return _err(str(e))
 
@@ -480,6 +705,66 @@ def pdf_set_watermark(doc_id: str, text: str) -> str:
         s.watermark_text = text
         s.log_element("watermark", text=text)
         return _ok({"doc_id": doc_id, "watermark": text})
+    except Exception as e:
+        return _err(str(e))
+
+
+def pdf_add_table_of_contents(
+    doc_id: str,
+    levels: list[int] | None = None,
+    title: str = "",
+) -> str:
+    """
+    Insert a table of contents and PDF bookmarks built from the headings.
+
+    Call it before the content it lists. levels: heading levels to include,
+    e.g. [1, 2]. title: optional heading shown above the table.
+    """
+    try:
+        s = get_session(doc_id)
+        if s.toc_levels:
+            return _err("A table of contents was already added to this document.")
+        selected = sorted({int(level) for level in (levels or [1, 2, 3])})
+        selected = [level for level in selected if level in (1, 2, 3)]
+        if not selected:
+            return _err("levels must contain heading levels 1, 2 or 3")
+        if title:
+            style = s.styles["h1"].clone(f"TOCTitle_{id(s)}")
+            s.story.append(Paragraph(title, style))
+        s.enable_toc(selected)
+        s.log_element(
+            "table_of_contents",
+            replay_kwargs={"levels": selected, "title": title},
+            levels=selected,
+        )
+        return _ok(
+            {
+                "doc_id": doc_id,
+                "added": "table_of_contents",
+                "levels": selected,
+            }
+        )
+    except Exception as e:
+        return _err(str(e))
+
+
+def pdf_add_anchor(doc_id: str, name: str) -> str:
+    """
+    Add a named anchor that links can jump to.
+
+    Link to it from text with <a href="#name">click</a>.
+    """
+    try:
+        s = get_session(doc_id)
+        anchor = name.strip()
+        if not anchor:
+            return _err("Anchor name is required")
+        if anchor in s.anchors:
+            return _err(f"Anchor '{anchor}' already exists in this document.")
+        s.anchors.add(anchor)
+        s.story.append(AnchorFlowable(anchor))
+        s.log_element("anchor", replay_kwargs={"name": anchor}, name=anchor)
+        return _ok({"doc_id": doc_id, "added": "anchor", "name": anchor})
     except Exception as e:
         return _err(str(e))
 
@@ -503,12 +788,16 @@ def pdf_add_heading(
     """
     try:
         s = get_session(doc_id)
+        s.link_targets.extend(_link_targets(text))
         level = max(1, min(3, level))
         style = s.styles[f"h{level}"].clone(f"H{level}_{id(s)}")
         style.alignment = ALIGN_MAP.get(alignment, ALIGN_MAP["left"])
         if color:
             style.textColor = parse_color(color)
-        s.story.append(Paragraph(text, style))
+        text = s.prepare_text(text, style)
+        para = Paragraph(text, style)
+        para._toc_level = level
+        s.story.append(para)
         s.log_element(
             "heading",
             replay_kwargs={
@@ -539,10 +828,13 @@ def pdf_add_paragraph(
     Add a body paragraph.
 
     Supports minimal HTML: <b>, <i>, <u>, <br/>.
+    Links: <a href="https://example.com">text</a> for an external link,
+    <a href="#anchor">text</a> to jump to an anchor made with pdf_add_anchor.
     alignment: left | center | right | justify
     """
     try:
         s = get_session(doc_id)
+        s.link_targets.extend(_link_targets(text))
         style = s.styles["body"].clone(f"Body_{id(s)}_{len(s.story)}")
         style.fontSize = font_size
         style.leading = font_size * 1.4
@@ -550,10 +842,13 @@ def pdf_add_paragraph(
         style.spaceAfter = space_after
         if color:
             style.textColor = parse_color(color)
-        if bold:
-            style.fontName = "Helvetica-Bold"
-        if italic:
-            style.fontName = "Helvetica-Oblique"
+        if bold and italic:
+            style.fontName = s.fonts["bold_italic"]
+        elif bold:
+            style.fontName = s.fonts["bold"]
+        elif italic:
+            style.fontName = s.fonts["italic"]
+        text = s.prepare_text(text, style)
         s.story.append(Paragraph(text, style))
         s.log_element(
             "paragraph",
@@ -576,10 +871,17 @@ def pdf_add_paragraph(
 def pdf_add_bullet_list(doc_id: str, items: list[str], indent_cm: float = 0.5) -> str:
     """Add an unordered bullet list. items is a list of plain strings."""
     try:
+        from pdf_ai_tools import fonts as fonts_module
+
         s = get_session(doc_id)
-        style = s.styles["body"]
         for item in items:
-            s.story.append(Paragraph(f"• {item}", style))
+            s.link_targets.extend(_link_targets(item))
+        style = s.styles["body"].clone(f"Bullets_{id(s)}_{len(s.story)}")
+        style.leftIndent = indent_cm * cm
+        style.firstLineIndent = 0
+        marker = fonts_module.bullet_marker(style.fontName)
+        for item in items:
+            s.story.append(Paragraph(s.prepare_text(f"{marker} {item}", style), style))
         s.log_element(
             "bullet_list",
             replay_kwargs={"items": items, "indent_cm": indent_cm},
@@ -594,9 +896,11 @@ def pdf_add_numbered_list(doc_id: str, items: list[str]) -> str:
     """Add a numbered (ordered) list. items is a list of plain strings."""
     try:
         s = get_session(doc_id)
-        style = s.styles["body"]
+        for item in items:
+            s.link_targets.extend(_link_targets(item))
+        style = s.styles["body"].clone(f"Numbered_{id(s)}_{len(s.story)}")
         for i, item in enumerate(items, 1):
-            s.story.append(Paragraph(f"{i}. {item}", style))
+            s.story.append(Paragraph(s.prepare_text(f"{i}. {item}", style), style))
         s.log_element(
             "numbered_list",
             replay_kwargs={"items": items},
@@ -662,6 +966,39 @@ def pdf_add_page_break(doc_id: str) -> str:
 # ===========================================================================
 
 
+_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".bmp"}
+_IMAGE_MAGIC = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF8", b"BM")
+
+
+def _validate_image_file(path: Path) -> str | None:
+    """Return an error message when the file is not a usable image."""
+    if path.suffix.lower() not in _IMAGE_SUFFIXES:
+        return (
+            f"Unsupported image format '{path.suffix or path.name}'. "
+            "Use PNG, JPEG, GIF or BMP."
+        )
+    try:
+        with path.open("rb") as fh:
+            header = fh.read(8)
+    except OSError as exc:
+        return f"Image cannot be read: {exc.strerror or 'file error'}"
+    if not any(header.startswith(magic) for magic in _IMAGE_MAGIC):
+        return f"'{path.name}' is not a valid PNG, JPEG, GIF or BMP file."
+    return None
+
+
+def _fit_image(path: Path, max_width: float, max_height: float) -> tuple[float, float]:
+    """Scale an image to fit inside a box, keeping its aspect ratio."""
+    from PIL import Image as PILImage
+
+    with PILImage.open(path) as im:
+        pixel_width, pixel_height = im.size
+    if not pixel_width or not pixel_height:
+        return max_width, max_height
+    scale = min(max_width / pixel_width, max_height / pixel_height)
+    return pixel_width * scale, pixel_height * scale
+
+
 def pdf_insert_image(
     doc_id: str,
     image_path: str,
@@ -673,18 +1010,26 @@ def pdf_insert_image(
     """
     Insert an image inline. Supported formats: PNG, JPEG, GIF, BMP.
 
-    width_cm / height_cm: explicit dimensions in cm (aspect ratio preserved if only one is set).
+    width_cm / height_cm: explicit dimensions in cm. Give one to scale it,
+    or both to fit the image inside that box without distorting it.
     caption: optional caption shown below the image.
     """
     try:
         path = resolve_user_path(image_path)
-        if not path.exists():
+        if not path.is_file():
             return _err(f"Image not found: {image_path}")
+        invalid = _validate_image_file(path)
+        if invalid:
+            return _err(invalid)
         s = get_session(doc_id)
+        width = width_cm * cm if width_cm else None
+        height = height_cm * cm if height_cm else None
+        if width and height:
+            width, height = _fit_image(path, width, height)
         img = Image(
             str(path),
-            width=width_cm * cm if width_cm else None,
-            height=height_cm * cm if height_cm else None,
+            width=width,
+            height=height,
         )
         img.hAlign = alignment.upper()
         flowables = [img]
@@ -752,6 +1097,8 @@ def pdf_add_table(
     column_widths_cm: list[float] | None = None,
     header_row: bool = True,
     zebra_stripes: bool = True,
+    column_alignments: list[str] | None = None,
+    repeat_header: bool = True,
 ) -> str:
     """
     Add a data table.
@@ -760,13 +1107,16 @@ def pdf_add_table(
     column_widths_cm: explicit column widths in cm (auto if omitted).
     header_row: style the first row as a header.
     zebra_stripes: alternate row background colors.
+    column_alignments: per column alignment, e.g. ['left', 'right'].
+    repeat_header: repeat the header row when the table splits across pages.
     """
     try:
         s = get_session(doc_id)
         if not data:
             return _err("Table data cannot be empty")
         col_widths = [w * cm for w in column_widths_cm] if column_widths_cm else None
-        table = Table(data, colWidths=col_widths)
+        repeat_rows = 1 if header_row and repeat_header and len(data) > 1 else 0
+        table = Table(data, colWidths=col_widths, repeatRows=repeat_rows)
         theme = s.styles["_theme"]
         cmds = [
             ("GRID", (0, 0), (-1, -1), 0.5, theme["border"]),
@@ -788,6 +1138,17 @@ def pdf_add_table(
             for i in range(start, len(data)):
                 if i % 2 == 0:
                     cmds.append(("BACKGROUND", (0, i), (-1, i), theme["background"]))
+        for column, alignment in enumerate(column_alignments or []):
+            if column >= len(data[0]):
+                break
+            cmds.append(
+                (
+                    "ALIGN",
+                    (column, 0),
+                    (column, -1),
+                    TABLE_ALIGN.get(alignment, "LEFT"),
+                )
+            )
         table.setStyle(TableStyle(cmds))
         s.story.append(table)
         s.story.append(Spacer(1, 0.3 * cm))
@@ -798,6 +1159,8 @@ def pdf_add_table(
                 "column_widths_cm": column_widths_cm,
                 "header_row": header_row,
                 "zebra_stripes": zebra_stripes,
+                "column_alignments": column_alignments,
+                "repeat_header": repeat_header,
             },
             rows=len(data),
             cols=len(data[0]),
@@ -828,10 +1191,15 @@ def pdf_add_colored_box(
     """
     try:
         s = get_session(doc_id)
+        s.link_targets.extend(_link_targets(text))
         rows: list[list] = []
+        body_style = s.styles["body"].clone(f"Box_{id(s)}_{len(s.story)}")
         if title:
-            rows.append([Paragraph(f"<b>{title}</b>", s.styles["h3"])])
-        rows.append([Paragraph(text, s.styles["body"])])
+            title_style = s.styles["h3"].clone(f"BoxTitle_{id(s)}_{len(s.story)}")
+            rows.append(
+                [Paragraph(s.prepare_text(f"<b>{title}</b>", title_style), title_style)]
+            )
+        rows.append([Paragraph(s.prepare_text(text, body_style), body_style)])
         t = Table(rows, colWidths=[s.content_width()])
         t.setStyle(
             TableStyle(
@@ -891,9 +1259,18 @@ def pdf_add_signature_placeholder(
         box_h = height_cm * cm
 
         boxes = []
+        label_font = s.font_covering(f"{label} {name}", s.fonts["body"])
         for i in range(count):
             sig_label = label if count == 1 else f"{label} {i + 1}"
-            boxes.append(SignatureBox(box_w, box_h, label=sig_label, name=name))
+            boxes.append(
+                SignatureBox(
+                    box_w,
+                    box_h,
+                    label=sig_label,
+                    name=name,
+                    font_name=label_font,
+                )
+            )
             s.signatures.append(SignaturePlaceholder(label=sig_label, name=name))
 
         if layout == "row" and count > 1:
@@ -944,8 +1321,9 @@ def pdf_add_cover_page(
     """
     Add a full-bleed cover page as the first page of the document.
 
-    MUST be called before any other content-adding tools.
-    The cover uses the session's palette primary/accent colors by default.
+    The cover is always placed first, even when it is called after other
+    content, so a document never ends up with content in front of it.
+    It uses the session's palette primary/accent colors by default.
 
     style options:
       stripe  — horizontal accent band across the page (default)
@@ -958,10 +1336,15 @@ def pdf_add_cover_page(
         from pdf_ai_tools.session import CoverPageFlowable
 
         s = get_session(doc_id)
-        if s.story:
-            return _err(
-                "pdf_add_cover_page must be called before any other content tools."
-            )
+        if s.cover_page is not None:
+            return _err("This document already has a cover page.")
+        if logo_path:
+            logo = resolve_user_path(logo_path)
+            if not logo.is_file():
+                return _err(f"Cover logo not found: {logo_path}")
+            invalid = _validate_image_file(logo)
+            if invalid:
+                return _err(invalid)
 
         theme = s.styles.get("_theme", {})
         cover = {
@@ -979,7 +1362,7 @@ def pdf_add_cover_page(
             "title_font_size": title_font_size,
         }
         s.cover_page = cover
-        s.story.append(CoverPageFlowable(s, cover))
+        s.story.insert(0, CoverPageFlowable(s, cover))
         s.log_element(
             "cover_page",
             replay_kwargs={
@@ -1034,6 +1417,7 @@ def pdf_add_section_divider(
             else theme.get("accent", parse_color("#3182ce"))
         )
         heading_font = theme.get("heading_font", "Helvetica-Bold")
+        title, heading_font = s.canvas_text(title, heading_font)
 
         s.story.append(Spacer(1, 0.4 * cm))
         s.story.append(
@@ -1180,14 +1564,16 @@ def pdf_add_two_column(
     """
     try:
         s = get_session(doc_id)
+        s.link_targets.extend(_link_targets(left_text))
+        s.link_targets.extend(_link_targets(right_text))
         total = s.content_width()
         gap = gap_cm * cm
         lw = total * (left_width_percent / 100) - gap / 2
         rw = total * (1 - left_width_percent / 100) - gap / 2
 
-        style = s.styles["body"]
-        left_para = Paragraph(left_text, style)
-        right_para = Paragraph(right_text, style)
+        style = s.styles["body"].clone(f"TwoCol_{id(s)}_{len(s.story)}")
+        left_para = Paragraph(s.prepare_text(left_text, style), style)
+        right_para = Paragraph(s.prepare_text(right_text, style), style)
 
         t = Table([[left_para, right_para]], colWidths=[lw, rw])
         t.setStyle(
@@ -1253,9 +1639,11 @@ def pdf_add_code_block(
             border = parse_color("#cbd5e1")
 
         cap_text = caption or (f"# {language}" if language else "")
+        code_style = s.styles["body"].clone(f"Code_{id(s)}_{len(s.story)}")
+        code_text = s.prepare_text(code, code_style)
         s.story.append(
             CodeBlockFlowable(
-                code=code,
+                code=code_text,
                 width=s.content_width(),
                 bg_color=code_bg,
                 border_color=border,
@@ -1263,6 +1651,8 @@ def pdf_add_code_block(
                 font_size=font_size,
                 caption=cap_text,
                 caption_color=theme.get("muted", parse_color("#718096")),
+                font_name=s.fonts["code"],
+                caption_font=s.fonts["body"],
             )
         )
         s.story.append(Spacer(1, 0.3 * cm))
@@ -1329,6 +1719,7 @@ def pdf_add_banner(
                 "background_color": background_color,
                 "text_color": text_color,
                 "font_size": font_size,
+                "padding_v": padding_v,
             },
             text=text,
         )

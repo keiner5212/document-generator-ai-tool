@@ -9,7 +9,7 @@ The agent needs two things:
 
 Each archive already contains Python and the libraries. Nothing is installed globally. The program is a folder, not a single file: it starts without unpacking into `/tmp`. A single-file build (`--onefile`) is opt-in only, because every launch unpacks the runtime and a hard kill leaks that directory.
 
-A push to `main` updates the draft release for the version in `pyproject.toml` (now `v0.1.0`): [GitHub releases](https://github.com/keiner5212/document-generator-ai-tool/releases). Download the archive for your machine:
+A push to `main` updates the draft release for the version in `pyproject.toml` (now `v0.4.0`): [GitHub releases](https://github.com/keiner5212/document-generator-ai-tool/releases). Download the archive for your machine:
 
 | Your machine | Archive |
 | --- | --- |

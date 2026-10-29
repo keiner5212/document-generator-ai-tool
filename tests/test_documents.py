@@ -463,3 +463,76 @@ def test_relative_and_home_paths(tmp_path, monkeypatch) -> None:
     info = tools.pdf_read_file_info("~/from-home.pdf")
     assert info["ok"] is True
     assert info["page_count"] >= 1
+
+
+def test_doc_id_survives_a_server_restart(tmp_path) -> None:
+    """A doc_id keeps working when the process that made it is gone."""
+    from pdf_ai_tools import session as session_module, store
+    from pdf_ai_tools.reader import read_pdf_text
+
+    out = tmp_path / "note.pdf"
+    created = tools.pdf_create_document(str(out))
+    doc_id = created["doc_id"]
+    assert tools.pdf_apply_palette(doc_id, "corporate_slate")["ok"] is True
+    assert tools.pdf_add_heading(doc_id, "Note", level=1)["ok"] is True
+    assert tools.pdf_add_paragraph(doc_id, "Body of the note.")["ok"] is True
+    store.save(session_module.get_session(doc_id))
+
+    session_module._REGISTRY.clear()
+
+    restored = session_module.get_session(doc_id)
+    assert restored.doc_id == doc_id
+    assert restored.palette_ref == "corporate_slate"
+    assert restored.summary()["elements"] >= 3
+
+    saved = tools.pdf_save_document(doc_id)
+    assert saved["ok"] is True
+    assert out.is_file()
+    text = "".join(page["text"] for page in read_pdf_text(out)["pages"])
+    assert "Note" in text
+    assert "Body of the note." in text
+    assert store.load(doc_id) is None
+
+
+def test_restored_session_keeps_the_page_setup(tmp_path) -> None:
+    """The margins and the page size survive the restart."""
+    from pdf_ai_tools import session as session_module, store
+
+    out = tmp_path / "margins.pdf"
+    created = tools.pdf_create_document(
+        str(out),
+        page_size="LETTER",
+        margin_left_cm=3.0,
+        margin_right_cm=3.0,
+        margin_top_cm=2.0,
+        margin_bottom_cm=2.0,
+    )
+    doc_id = created["doc_id"]
+    store.save(session_module.get_session(doc_id))
+    session_module._REGISTRY.clear()
+
+    restored = session_module.get_session(doc_id)
+    assert restored.page_size_name == "LETTER"
+    assert restored.margins == (3.0, 3.0, 2.0, 2.0)
+
+
+def test_mcp_call_saves_the_session(tmp_path) -> None:
+    """Every MCP tool call leaves the session on disk."""
+    from pdf_ai_tools import mcp_server, store
+
+    out = tmp_path / "kept.pdf"
+    created = tools.pdf_create_document(str(out))
+    doc_id = created["doc_id"]
+    mcp_server._persist(created, {})
+
+    assert store.load(doc_id) is not None
+    assert doc_id in {
+        session["doc_id"] for session in tools.pdf_list_documents()["sessions"]
+    }
+
+
+def test_unknown_doc_id_is_reported(tmp_path) -> None:
+    """A doc_id that was never created is named in the error."""
+    result = tools.pdf_add_heading("does-not-exist", "Note")
+    assert result["ok"] is False
+    assert "No active document" in result["error"]

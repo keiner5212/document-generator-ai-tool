@@ -688,6 +688,14 @@ def is_registered(font_name: str) -> bool:
         return False
 
 
+def path_for_registered(font_name: str) -> str | None:
+    """The file a registered font name came from, or None for a built-in."""
+    for key, registered in _registered.items():
+        if registered == font_name:
+            return key.rsplit("#", 1)[0]
+    return None
+
+
 def bullet_marker(font_name: str) -> str:
     """A bullet character the font can actually draw."""
     supported = coverage(font_name)

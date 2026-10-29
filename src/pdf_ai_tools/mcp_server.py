@@ -18,7 +18,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from mcp.server.mcpserver import MCPServer
 
-from pdf_ai_tools import template as template_module, tools
+from pdf_ai_tools import session as session_module, template as template_module, tools
 from pdf_ai_tools.render import render
 
 
@@ -41,7 +41,9 @@ def _instructions() -> str:
         "pdf_configure_header and pdf_configure_footer, pdf_enable_page_numbers, "
         "the content tools, then pdf_save_document. "
         "Keep the doc_id from pdf_create_document, every later call needs it. "
-        "pdf_save_document writes the file and closes the session.\n"
+        "pdf_save_document writes the file and closes the session. "
+        "The session is written to disk after every call, so a doc_id keeps "
+        "working even when the client does not keep one server process alive.\n"
         "Built-in palette and template names are the JSON file stem "
         "(ocean_blue, invoice), not the display name inside the file. "
         "A bare name loads the copy shipped with the server. "
@@ -72,13 +74,34 @@ mcp = MCPServer(
 _register_tool = mcp.tool
 
 
+def _persist(result: dict, fn_kwargs: dict) -> None:
+    """
+    Write the session to disk after a tool call.
+
+    A client that does not keep one server process alive between calls would
+    otherwise lose the doc_id, and the next call would fail with "No active
+    document". The snapshot is what makes the doc_id survive that.
+    """
+    doc_id = result.get("doc_id") or fn_kwargs.get("doc_id")
+    if not doc_id:
+        return
+    try:
+        session_module.persist_session(doc_id)
+    except Exception as exc:
+        warnings = result.setdefault("warnings", [])
+        warnings.append(f"Session not saved to disk: {exc}")
+
+
 def _tool(*args, **kwargs):
     kwargs["structured_output"] = False
 
     def decorator(fn):
         @wraps(fn)
         def wrapped(*fn_args, **fn_kwargs):
-            return render(fn(*fn_args, **fn_kwargs))
+            result = fn(*fn_args, **fn_kwargs)
+            if isinstance(result, dict):
+                _persist(result, fn_kwargs)
+            return render(result)
 
         return _register_tool(*args, **kwargs)(wrapped)
 

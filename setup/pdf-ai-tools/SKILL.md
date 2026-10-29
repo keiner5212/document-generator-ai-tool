@@ -38,6 +38,8 @@ pdf_save_document            <- always last
 ```
 
 Always keep `doc_id` from `pdf_create_document` - every other tool requires it.
+The session is written to disk after every call, so the same `doc_id` keeps working
+when the client does not keep one server process alive between calls.
 
 ---
 

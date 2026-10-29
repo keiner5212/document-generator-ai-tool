@@ -13,6 +13,8 @@ doc_id: abc
 
 `pdf_create_document` returns `doc_id`. Pass that id to every later call on the same document. `pdf_save_document` writes the file and closes the session. Do not call content tools after save.
 
+The session is written to disk after every call and restored on demand, so a `doc_id` keeps working when the client starts a new server process between calls. The snapshots live in `~/.cache/pdf-ai-tools/sessions`; set `PDF_AI_TOOLS_SESSION_DIR` to move them, and `pdf_save_document` removes them with the session.
+
 `pdf_render_template` creates, fills, saves, and closes in one call. It returns `saved_to`. It does not return a live `doc_id`.
 
 `pdf_list_documents` lists sessions that are still open.

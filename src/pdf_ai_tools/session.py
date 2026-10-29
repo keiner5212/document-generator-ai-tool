@@ -18,6 +18,7 @@ from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate
 from reportlab.platypus.flowables import Flowable
 from reportlab.platypus.tableofcontents import TableOfContents
 
+from pdf_ai_tools import store
 from pdf_ai_tools.paths import resolve_user_path
 from pdf_ai_tools.styles import (
     build_styles,
@@ -551,8 +552,9 @@ class PDFSession:
         output_path: str | Path,
         page_size: str = "A4",
         margins_cm: tuple[float, float, float, float] = (2.5, 2.5, 2.5, 2.5),
+        doc_id: str | None = None,
     ):
-        self.doc_id = str(uuid.uuid4())[:8]
+        self.doc_id = doc_id or str(uuid.uuid4())[:8]
         self.output_path = resolve_user_path(output_path)
         self.page_size_name = page_size.upper().replace("-", "_")
         self.pagesize = PAGE_SIZES.get(self.page_size_name, A4)
@@ -931,20 +933,116 @@ class PDFSession:
 # ---------------------------------------------------------------------------
 
 
-def get_session(doc_id: str) -> PDFSession:
-    if doc_id not in _REGISTRY:
-        raise KeyError(
-            f"No active document '{doc_id}'. Call pdf_create_document first."
+def _apply_header_footer(config: HeaderFooterConfig, values: dict) -> None:
+    for key, value in values.items():
+        if hasattr(config, key):
+            setattr(config, key, value)
+
+
+def _restore_fonts(session: PDFSession, fonts: dict[str, str], fonts_module) -> None:
+    """Put the session fonts back, re-registering the files this process lost."""
+    resolved = dict(fonts)
+    for role, name in list(resolved.items()):
+        if fonts_module.is_registered(name):
+            continue
+        path = fonts_module.path_for_registered(name)
+        fallback = DEFAULT_FONTS.get(role, "Helvetica")
+        if path:
+            try:
+                fonts_module.register_font(path, name=name)
+                continue
+            except Exception as exc:
+                session.log_element(
+                    "font_fallback", role=role, was=name, now=fallback, error=str(exc)
+                )
+        else:
+            session.log_element("font_fallback", role=role, was=name, now=fallback)
+        resolved[role] = fallback
+    session.fonts = resolved
+    session.rebuild_styles()
+
+
+def _restore_from_store(doc_id: str) -> PDFSession | None:
+    """Rebuild a session from the disk store, as if it never left memory."""
+    data = store.load(doc_id)
+    if not data:
+        return None
+
+    from pdf_ai_tools import fonts as fonts_module
+    from pdf_ai_tools.template import _block_dispatch
+
+    try:
+        session = PDFSession(
+            output_path=data["output_path"],
+            page_size=data.get("page_size", "A4"),
+            margins_cm=tuple(data.get("margins_cm", (2.5, 2.5, 2.5, 2.5))),
+            doc_id=doc_id,
         )
-    return _REGISTRY[doc_id]
+    except Exception:
+        return None
+
+    palette = data.get("palette")
+    if palette:
+        session.apply_palette(palette, data.get("palette_ref") or "")
+    _restore_fonts(session, data.get("fonts") or {}, fonts_module)
+    session.metadata = dict(data.get("metadata") or {})
+    _apply_header_footer(session.header, data.get("header") or {})
+    _apply_header_footer(session.footer, data.get("footer") or {})
+    session.page_numbers = bool(data.get("page_numbers"))
+    session.page_number_format = data.get("page_number_format", "page")
+    session.watermark_text = data.get("watermark")
+    session.toc_levels = list(data.get("toc_levels") or [])
+
+    dispatch = _block_dispatch()
+    errors = []
+    for block in data.get("blocks") or []:
+        kind = block.get("kind")
+        fn = dispatch.get(kind)
+        if fn is None:
+            continue
+        try:
+            fn(doc_id, **dict(block.get("kwargs") or {}))
+        except Exception as exc:
+            errors.append({"kind": "replay_error", "failed": kind, "error": str(exc)})
+    session._element_log = [dict(entry) for entry in data.get("elements") or []]
+    session._element_log.extend(errors)
+    return session
+
+
+def get_session(doc_id: str) -> PDFSession:
+    session = _REGISTRY.get(doc_id)
+    if session is None:
+        session = _restore_from_store(doc_id)
+    if session is None:
+        raise KeyError(
+            f"No active document '{doc_id}'. Call pdf_create_document first, "
+            "and keep the doc_id it returns."
+        )
+    return session
 
 
 def list_sessions() -> list[dict[str, str]]:
-    return [
+    sessions = [
         {"doc_id": s.doc_id, "output_path": str(s.output_path)}
         for s in _REGISTRY.values()
     ]
+    known = {s["doc_id"] for s in sessions}
+    for data in store.stored_sessions():
+        doc_id = str(data.get("doc_id") or "")
+        if doc_id and doc_id not in known:
+            sessions.append(
+                {"doc_id": doc_id, "output_path": str(data.get("output_path", ""))}
+            )
+    return sessions
 
 
 def close_session(doc_id: str) -> None:
     _REGISTRY.pop(doc_id, None)
+    store.remove(doc_id)
+
+
+def persist_session(doc_id: str) -> None:
+    """Write the session to disk, so the doc_id survives a server restart."""
+    session = _REGISTRY.get(doc_id)
+    if session is not None:
+        store.save(session)

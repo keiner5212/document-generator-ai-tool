@@ -8,6 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **A `doc_id` now survives a server restart.** The session was kept in the server process, so a
+  client that did not keep one process alive between calls lost it and every later call with the
+  same `doc_id` failed with "No active document". The session is now written to disk after every
+  tool call and rebuilt on demand. The snapshots live in `~/.cache/pdf-ai-tools/sessions`, and
+  `PDF_AI_TOOLS_SESSION_DIR` moves them.
+- `pdf_list_documents` also lists the sessions that are on disk but not in memory.
+- The error for an unknown `doc_id` now names the tool that creates one.
+
 ## [0.4.1] - 2026-10-23
 
 ### Fixed

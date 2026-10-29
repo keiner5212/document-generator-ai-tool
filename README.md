@@ -27,6 +27,8 @@ Built-in palette and template names are the JSON file stem (`ocean_blue`, `invoi
 
 `pdf_render_template` takes `variables_json` as a JSON object string. `pdf_create_document` returns `doc_id`. Every later call on that document needs it. `pdf_save_document` writes the file and closes the session.
 
+The session is written to disk after every call and restored on demand, so a `doc_id` keeps working when the client does not keep one server process alive between calls. The snapshots live in `~/.cache/pdf-ai-tools/sessions`; `PDF_AI_TOOLS_SESSION_DIR` moves them.
+
 The built-in templates are `invoice`, `contract` and `report`. When none of them fits, pass the template object inline with `template_json` and the server writes the PDF in one call, with no template file on disk. The template schema is in the `pdf_render_template` tool description.
 
 Text uses the built-in Latin fonts by default. For any other script, `pdf_list_fonts(for_text="...")` finds the fonts installed on the machine that can draw it and `pdf_use_font` applies one. Characters the current font cannot draw fall back to another installed font automatically.
